@@ -1,0 +1,95 @@
+/**
+ * Method for generating Token objects. 
+ * @author M. Robinson
+ *
+ */
+public class Token {
+
+	/**
+	 * String representing the Token's type
+	 */
+	private String type;
+	/**
+	 * String storing the token's lexeme
+	 */
+	private String lexeme;
+	/**
+	 * Integer to index the token
+	 */
+	private int index;
+	
+	/**
+	 * Constructor for generating new Token objects.
+	 * @param type Type of the Token
+	 * @param lexeme Lexeme of the Token
+	 * @param index Index of the Token
+	 */
+	public Token(String type, String lexeme, int index) {
+		this.type = type;
+		this.lexeme = lexeme;
+		this.index = index;
+	}
+
+	/**
+	 * Getter for the type
+	 * @return String type.
+	 */
+	public String getType() {
+		return type;
+	}
+	/**
+	 * Setter for the type.
+	 * @param type New type.
+	 */
+	public void setType(String type) {
+		this.type = type;
+	}
+	/**
+	 * Getter for the lexeme.
+	 * @return String lexeme.
+	 */
+	public String getLexeme() {
+		return lexeme;
+	}
+	/**
+	 * Setter for the lexeme.
+	 * @param lexeme New value of lexeme.
+	 */
+	public void setLexeme(String lexeme) {
+		this.lexeme = lexeme;
+	}
+	/**
+	 * Getter for the index.
+	 * @return Integer index.
+	 */
+	public int getIndex() {
+		return index;
+	}
+	/**
+	 * Setter for the index.
+	 * @param index New integer index.
+	 */
+	public void setIndex(int index) {
+		this.index = index;
+	}
+	/**
+	 * toString() method for generating human-readable Token objects.
+	 */
+	public String toString() {
+		return "Type: " + type + " Lexeme: " + lexeme + " index: " + index;
+	}
+	
+	public static void main(String[] args) {
+		Token a = new Token("ATOM", "A", 0);
+    	Token b = new Token("CONNECTIVE", "AND", 1);
+    	Token c = new Token("ATOM","B",  2);
+    	// Expected: Type: ATOM Lexeme: A index: 0
+    	System.out.println(a.toString());
+    	// Expected: Type: CONNECTIVE Lexeme: AND index: 1
+    	System.out.println(b.toString());
+    	// Expected: Type: ATOM Lexeme: B index: 2
+    	System.out.println(c.toString());
+	}
+	
+	
+}

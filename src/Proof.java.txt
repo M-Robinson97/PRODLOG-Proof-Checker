@@ -1,0 +1,2179 @@
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+
+
+
+/**
+ * Proof class for generating Proof objects. Proof contains a constructor which takes
+ * as input the logic to which the Interpreter should be set in order to read inputs
+ * for this Proof. It has a readInput method which runs a line of user input through
+ * the Interpreter and then checks the keyword of the resultant line. Depending on
+ * the keyword, some simple operations will be performed to add the line to the
+ * Proof's storage of ProofLine objects, or the inference rule used to derive that 
+ * line will be checked. First, an attempt will be made to introduce the MLO of that 
+ * line. If that does not work, then we iterate through the proof line by line and see
+ * if this line can be produced by applying the derived rules or elimination rules to the
+ * current line.
+ * @author M. Robinson
+ *
+ */
+public class Proof {
+	
+	/*
+	 * lines stores a line object at the relevant line number. lineKeys shadows the
+	 * lines by storing the relevant line number at the relevant code. If a line of 
+	 * the proof is reiterated (that is, if it is repeated), then the lineKeys map
+	 * will store the line of its most recent occurance.
+	 */   
+	public  ArrayList<ProofLine> lines;
+	public  HashMap<String, Integer> lineKeys;
+	/**
+	 * Tracks assumption objects via the key of the opening assumption.
+	 */
+	public  HashMap<String, Assumption> assumptions;
+	/**
+	 * Stores the conclusion.
+	 */
+	public ProofLine conclusion;
+	/**
+	 * Stores all constants which are currently contained in undischarged assumptions.
+	 */
+	public ArrayList<HashSet<Term>> constantsInUndischargedAssumptions = new ArrayList<HashSet<Term>>();
+	/**
+	 * Stores all the constants in the proof.
+	 */
+	public HashSet<Term> constantsInProof = new HashSet<Term>();
+	/**
+	 * Identifies whether or not the proof already has a conclusion.
+	 */
+	public boolean hasConclusion;
+	/**
+	 * The current assumption depth of the proof.
+	 */
+	public int assumptionDepth = 0;
+	/**
+	 * The current line number.
+	 */
+	public int lineNumber = 1;
+	/**
+	 * The String "empty" is used a lot in this class.
+	 */
+	public final String EMPTY = "empty";
+	/**
+	 * Integers tracking the logic which the interpreter should be set to.
+	 */
+	static final int PROPLOG = 0;
+	static final int PREDLOG = 1;
+	public int thisLogic;
+	
+	
+	/**
+	 * Comstructor for generating Proof objects.
+	 * @param logic The logic to be used in tis Proof.
+	 */
+	public Proof(int logic) {
+		lines = new ArrayList<ProofLine>();
+		lineKeys = new HashMap<String, Integer>();
+		assumptions = new HashMap<String, Assumption>();
+		conclusion = null;
+		this.hasConclusion = false;
+		this.assumptionDepth = 0;
+		this.lineNumber = 1;
+		this.thisLogic = logic;
+	}
+	
+	/**
+	 * readInput method acts as entry point to functionality of the Proof, 
+	 * pushing input through the Interpreter and checking the keyword
+	 * of the result.
+	 * @param userInput
+	 * @param logic
+	 */
+	public void readInput(String userInput, int logic) {
+		
+		Interpreter.setLogic(logic);
+		
+			
+				if(userInput.equals("#ENDASSUME")) {
+					System.out.println("endAssume helper called");
+					endAssumeHelper();	
+					return;
+				}
+					
+				ArrayList<Token> tokens = Interpreter.lex(userInput);
+				if(tokens.isEmpty()) {
+					return;
+				}
+				AbstractSyntaxTree inputAsTree = Interpreter.parse(tokens);		
+				ProofLine inputAsLine = Interpreter.toLine(lineNumber, inputAsTree, assumptionDepth, "Invalid inference");
+				String thisLineKeyword = inputAsLine.getKeyword();
+						
+				switch(thisLineKeyword) {
+				case "#PREMISE":
+					inputAsLine.setRule("Premise");
+					if(checkPremise(inputAsLine)) {
+						lineNumber++;
+					}
+					if(thisLogic == PREDLOG) {
+						
+						addToConstantsInUndischargedAssumptions(lines.get(lineKeys.get(inputAsLine.getKey())-1));
+						addToConstantsInProof(inputAsLine);
+					}
+					break;
+					
+				case "#ASSUME":
+					assumptionDepth++;
+					inputAsLine.setRule("Assumption");
+					inputAsLine.setAssumptionDepth(assumptionDepth);
+					addLineHelper(inputAsLine);
+					assumptions.put(inputAsLine.getKey(), new Assumption(inputAsLine));
+					if(thisLogic == PREDLOG) {
+						addToConstantsInUndischargedAssumptions(lines.get(lineKeys.get(inputAsLine.getKey())-1));
+						addToConstantsInProof(inputAsLine);
+					}
+					break;
+				
+				case "#CONCLUDE":
+					inputAsLine.setRule("Conclusion");
+					checkConclusion(inputAsLine);
+					break;
+					
+				case "#DERIVE":
+					String ruleApplied = checkDerive(inputAsLine);
+					inputAsLine.setRule(ruleApplied);
+					if(ruleApplied.equals("1")) {
+						throw new IllegalArgumentException("Error! Invalid derivation on " + inputAsLine.getProp().toString());
+					} else {
+						addLineHelper(inputAsLine);
+						if(thisLogic == PREDLOG) {
+							addToConstantsInProof(inputAsLine);
+						}
+					}
+					break;
+					
+				default:
+					throw new IllegalArgumentException("Logic error! " + inputAsLine.getProp().toString() + " is not a valid deduction!");
+				}
+			
+			print();
+	}
+	
+	/**
+	 * Method handling the admin of closing assumptions. Works by finding the outermost open assumption, if there is one,
+	 * and closing it. Otherwise, it just does nothing.
+	 */
+	public void endAssumeHelper() {
+
+		if(assumptionDepth == 0 || lines.size() == 1) {
+			return;
+		} else {
+			
+			for(ProofLine line : lines) {
+				// Go through lines from the top. If it isn't an assumption, we skip.
+				if(!line.getKeyword().equals("#ASSUME")) {
+					continue;
+				} else {
+					// If it is an assumption, we check if it is closed. If it is, we continue
+					String assumptionKey = line.getKey();
+					Assumption currentAssumption = assumptions.get(assumptionKey);
+					if(currentAssumption.isClosed()) {
+						continue;
+					}
+					// If it's open, we now check if it has the correct assumption depth. If so, we close it.
+					if(currentAssumption.getStartLine().getAssumptionDepth() == assumptionDepth) {
+						assumptions.get(assumptionKey).closeAssumption(lines.get(lines.size()-1));
+						
+						if(constantsInUndischargedAssumptions.size() != 0) {
+							
+							constantsInUndischargedAssumptions.remove(constantsInUndischargedAssumptions.size()-1);
+						}
+						
+						assumptionDepth--;
+						return;
+					}
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Method taking care of the admin of adding a new line.
+	 */
+	public void addLineHelper(ProofLine inputAsLine) {
+		String lineKey = lineKeyHelper(inputAsLine.getKey());
+		inputAsLine.setKey(lineKey);
+		lines.add(lineNumber-1, inputAsLine);
+		lineKeys.put(lineKey, lineNumber);
+		lineNumber++;
+	}
+	
+	/**
+	 * Method taking care of the admin of generating and updating
+	 * line keys.
+	 */
+	public String lineKeyHelper(String lineKey) {
+		
+		String returnKey;
+		
+		if(lineKeys.containsKey(lineKey)) {
+			int i = 1;
+			while(lineKeys.containsKey(lineKey + Integer.toString(i))) {
+				i++;
+			}
+			returnKey = lineKey + Integer.toString(i);
+		} else {
+			returnKey = lineKey;
+		}
+		return returnKey;
+	}
+	
+	/**
+	 * Method for adding a premise to the proof. New premises are
+	 * added to the start of the proof. Line numbers and rule
+	 * references for ProofLines are incremented.
+	 */
+	public boolean checkPremise(ProofLine thisLine) {
+			
+		thisLine.setAssumptionDepth(0);
+		String lineKey = lineKeyHelper(thisLine.getKey());
+		thisLine.setKey(lineKey);
+		thisLine.setLineNum(1);
+		lines.add(0, thisLine);
+		lineKeys.put(lineKey, 1);
+				
+		for(int i = 1; i < lines.size(); i++) {
+				
+			lines.get(i).changeLineNumber(true);
+			lines.get(i).changeRuleNumbers(true);
+					
+			lineKeys.replace(lines.get(i).getKey(), (i + 1));
+		}
+		
+		return true;
+	}
+	
+	
+	/**
+	 * Method for checking if a given ProofLine is the conclusion of a Proof.
+	 * @param thisLine
+	 * @return
+	 */
+	public boolean checkConclusion(ProofLine thisLine) {
+		
+		ProofLine lineAsConclusion = new ProofLine(0000, "#CONCLUDE", thisLine.getProp(), 0, "Conclusion");
+		
+		if(hasConclusion == false) {
+			conclusion = lineAsConclusion;
+			hasConclusion = true;
+			return true;
+		} else {
+			conclusion = lineAsConclusion;
+			return true;
+		}
+		
+	}
+	
+	/*
+	 * Check the MLO. Check that MLO's introduction rule. If it is 
+	 * satisfied, a rule is returned. If not, the elimination rules
+	 * are called. These call the derived rules. If both fail, then
+	 * 1 is returned.
+	 */
+	public String checkDerive(ProofLine thisLine) {
+		
+		
+		
+		String type = thisLine.getProp().getType();
+		String rule = "1";
+		String key = thisLine.getKey();
+		
+		if(type.equals("AND")) {
+			BinaryProp conjunction = (BinaryProp) thisLine.getProp();
+			int[] conjunctionIntroduction = conjunctionIntroduction(conjunction);
+			if((conjunctionIntroduction[0] == 0) && (conjunctionIntroduction[1] == 0)) {
+				// Go to elimination rules.
+				return eliminationRules(thisLine);
+			} else {
+				return thisLine.getProp().getUnicode() + "I " + Integer.toString(conjunctionIntroduction[0]) + "," + Integer.toString(conjunctionIntroduction[1]);
+			}
+			
+		} else if(type.equals("OR")) {
+			BinaryProp disjunction = (BinaryProp) thisLine.getProp();
+			int disjunctionIntroduction = disjunctionIntroduction(disjunction);
+			if(disjunctionIntroduction == 0) {
+				// Go to elimination rules.
+				return (eliminationRules(thisLine));
+			} else {
+				return thisLine.getProp().getUnicode() + "I " + Integer.toString(disjunctionIntroduction);
+			}
+		} else if(type.equals("IFTHEN")) {
+			int[] conditionalIntroduction = conditionalIntroduction(thisLine);
+			if((conditionalIntroduction[0] == 0) && (conditionalIntroduction[1] == 0)) {
+				// Go to elimination rules.
+				return (eliminationRules(thisLine));
+				
+			} else {
+				return thisLine.getProp().getUnicode() + "I " + Integer.toString(conditionalIntroduction[0]) + "-" + Integer.toString(conditionalIntroduction[1]);
+			}
+		} else if(type.equals("NOT")) {
+			int[] negationIntroduction = negationIntroduction(thisLine);
+			if((negationIntroduction[0] == 0) && (negationIntroduction[1] == 0)) {
+				// Go to elimination rules.
+				return (eliminationRules(thisLine));
+			} else {
+				return thisLine.getProp().getUnicode() + "I " + Integer.toString(negationIntroduction[0]) + "-" + Integer.toString(negationIntroduction[1]);
+			}
+		} else if(type.equals("IFF")) {
+			
+			int[] biconditionalIntroduction = biconditionalIntroduction(thisLine);
+			if((biconditionalIntroduction[0] == 0 && biconditionalIntroduction[1] == 0)||
+					(biconditionalIntroduction[2] == 0 && (biconditionalIntroduction[3] == 0))){
+				// Go to elimination rules.
+				return (eliminationRules(thisLine));
+			} else {
+				return thisLine.getProp().getUnicode() + "I " + Integer.toString(biconditionalIntroduction[0]) + "-" + Integer.toString(biconditionalIntroduction[1]) + 
+						", " + Integer.toString(biconditionalIntroduction[2]) + "-" + Integer.toString(biconditionalIntroduction[3]);
+			}
+		
+		} else if(type.equals("ATOMIC")) {
+			if(key.equals("ABSURDITY")) {
+				return "ABSURDITY";
+			} else {
+				// Go to elimination rules.
+				return eliminationRules(thisLine);
+			}
+			
+		} else if(type.equals("FORALL")) {
+			
+			int universalIntroduction = universalIntroduction(thisLine);
+			if(universalIntroduction == 0) {
+				
+				return (eliminationRules(thisLine));
+			} else {
+				return thisLine.getProp().getUnicode() + "I " + Integer.toString(universalIntroduction);
+			}
+		} else if(type.equals("FORSOME")) {
+			int existentialIntroduction = existentialIntroduction(thisLine);
+			if(existentialIntroduction == 0) {
+				return eliminationRules(thisLine);
+			} else {
+				return thisLine.getProp().getUnicode() + "I " + Integer.toString(existentialIntroduction);
+			}
+		} else if(type.equals("IDENTITY")) {
+		
+			int identityIntroduction = identityIntroduction(thisLine);
+			
+			if(identityIntroduction == 0) {
+				return eliminationRules(thisLine);
+			} else {
+				return thisLine.getProp().getUnicode() + "I";
+			}
+		
+		} else if(type.equals("PREDICATE")) {
+			return eliminationRules(thisLine);
+		}
+		
+		return rule;
+	}
+	
+	/*
+	 * Method for introducing the conjunction.
+	 * Method takes as input a binary proposition of type = "CONJUNCTION".
+	 * It returns an array with two elements. If the elements required to 
+	 * introduce the conjunction are present in the proof, then the lines
+	 * of those elements are returned. Otherwise, the array contains zeroes.
+	 */
+	public int[] conjunctionIntroduction(BinaryProp conjunction) {
+		
+		String leftKey = conjunction.getLeftProp().getKey();
+		String rightKey = conjunction.getRightProp().getKey();
+		
+		int[] returnArray = {0, 0};
+		
+		if((lineKeys.containsKey(leftKey) && notInClosedAssumption(lines.get(lineKeys.get(leftKey)-1)) && 
+				(lineKeys.containsKey(rightKey) && notInClosedAssumption(lines.get(lineKeys.get(rightKey)-1))))){
+			returnArray[0] = lineKeys.get(leftKey); 
+			returnArray[1] = lineKeys.get(rightKey);
+		}
+		return returnArray;
+	}
+	
+	/*
+	 * Method for introducing the disjunction.
+	 * Method takes as input a binary proposition of type = "DISJUNCTION".
+	 * It returns a single integer. If either element required to 
+	 * introduce the disjunction is present in the proof, then the line
+	 * of that element is returned. Otherwise, the zero is returned.
+	 */
+	public int disjunctionIntroduction(BinaryProp disjunction) {
+		
+		String leftKey = disjunction.getLeftProp().getKey();
+		String rightKey = disjunction.getRightProp().getKey();
+		
+		int returnValue = 0;
+		
+		if(lineKeys.containsKey(leftKey) && notInClosedAssumption(lines.get(lineKeys.get(leftKey)-1))){
+			returnValue = lineKeys.get(leftKey);
+		} else if(lineKeys.containsKey(rightKey) && notInClosedAssumption(lines.get(lineKeys.get(rightKey)-1))){
+			returnValue = lineKeys.get(rightKey);
+		}
+		return returnValue;
+	}
+	
+	/**
+	 * Method for introducing the conditional.
+	 * Method takes as input a binary proposition of type = "CONDITIONAL".
+	 * It returns an array of tupe integer. If the lefthand element is 
+	 * present at the start of a discharged assumption of the proof, and the 
+	 * righthand element is present at the end of the discharged assumptions, 
+	 * then the lines of those elements are returned. Otherwise, the zeroes are 
+	 * returned.
+	 */
+	
+	public int[] conditionalIntroduction(ProofLine conditional) {
+		BinaryProp prop = (BinaryProp) conditional.getProp();
+		
+		Proposition leftProp = prop.getLeftProp();
+		Proposition rightProp = prop.getRightProp();
+		
+		String leftKey = leftProp.getKey();
+		String rightKey = rightProp.getKey();
+		
+		int[] returnArray = {0, 0};
+		
+		String[] keys = bookendAssumption(leftKey, rightKey);
+		if(!keys[0].equals(EMPTY)) {
+			
+			returnArray[0] = lineKeys.get(keys[0]);
+		}
+		if(!keys[1].equals(EMPTY)) {
+			
+			returnArray[1] = lineKeys.get(keys[1]);
+		}
+		
+		
+		return returnArray;
+	}
+	
+	/**
+	 * Method for introducing negation.
+	 * @param negation
+	 * @return
+	 */
+	public int[] negationIntroduction(ProofLine negation) {
+		
+		UnaryProp prop = (UnaryProp) negation.getProp();
+		
+		String key = prop.getProp().getKey();
+		String absurdKey = "(ABSURD)";
+		
+		int[] returnArray = {0, 0};
+		
+		
+		String[] keys = bookendAssumption(key, absurdKey);
+		if(!keys[0].equals(EMPTY)) {
+			returnArray[0] = lineKeys.get(keys[0]);
+		}
+		if(!keys[1].equals(EMPTY)) {
+			returnArray[1] = lineKeys.get(keys[1]);
+		}
+		
+		return returnArray;
+	}
+	
+	/**
+	 * Method for introducing the biconditional.
+	 * @param biconditional
+	 * @return
+	 */
+	public int[] biconditionalIntroduction(ProofLine biconditional) {
+		BinaryProp prop = (BinaryProp) biconditional.getProp();
+		
+		Proposition leftProp = prop.getLeftProp();
+		Proposition rightProp = prop.getRightProp();
+		
+		String leftKey = leftProp.getKey();
+		String rightKey = rightProp.getKey();
+		
+		int[] returnArray = {0, 0, 0, 0};
+		
+		String[] keysRightwards = bookendAssumption(leftKey, rightKey);
+		if(!keysRightwards[0].equals(EMPTY)) {
+			
+			returnArray[0] = lineKeys.get(keysRightwards[0]);
+		}
+		if(!keysRightwards[1].equals(EMPTY)) {
+			
+			returnArray[1] = lineKeys.get(keysRightwards[1]);
+		}
+		
+
+		String[] keysLeftwards = bookendAssumption(rightKey, leftKey);
+		if(!keysLeftwards[0].equals(EMPTY)) {
+			
+			returnArray[2] = lineKeys.get(keysLeftwards[0]);
+		}
+		if(!keysLeftwards[1].equals(EMPTY)) {
+			
+			returnArray[3] = lineKeys.get(keysLeftwards[1]);
+		}
+		
+		return returnArray;
+	}
+	
+	/* 
+	 * Method to check if two propositions 'bookend' an assumption (i.e. the
+	 * first is the assumed premise, and the second is the last derivation 
+	 * before that assumption is discharged.
+	 * 
+	 */
+	public String[] bookendAssumption(String leftKey, String rightKey) {
+		
+		String[] returnArray = {EMPTY, EMPTY};
+		
+		// We now want to create a list of all of the possible assumptions which might
+		// contain this. 
+		//  We do that by searching for the left key in lines, then searching
+		// for the key+1, then the key+2, etc. until it's no longer there. 
+		//  We need to do the same thing for the right hand key as well. 
+		
+		ArrayList<String> prospectiveOpenAssumptions = new ArrayList<String>();
+		ArrayList<String> prospectiveCloseAssumptions = new ArrayList<String>();
+		
+		// TO ENSURE THAT WE GET THROUGH ALL UNIQUE CODES: We first check to see
+		// if the key ends in a digit. If it does, we crop away the digit.
+		String leftKeyUpdate = cropLastDigit(leftKey);
+		String rightKeyUpdate = cropLastDigit(rightKey);
+		
+		// First check if the required keys are present in the Proof. If not, return false.
+		if(!(lineKeys.containsKey(leftKeyUpdate) && lineKeys.containsKey(rightKeyUpdate))) {
+			return returnArray;
+			
+		//If they are: add the keys to the list of prospective open assumptions.
+		} else {
+			
+			boolean containsAssumption = true;
+			int keyTracker = 1;
+			
+			while(containsAssumption) {
+				
+				boolean containsLeft = lineKeys.containsKey(leftKeyUpdate);
+				boolean containsRight = lineKeys.containsKey(rightKeyUpdate);
+				
+				if(containsLeft) {
+					prospectiveOpenAssumptions.add(leftKeyUpdate);
+				}
+				if(containsRight) {
+					prospectiveCloseAssumptions.add(rightKeyUpdate);
+				}
+				
+				leftKeyUpdate = cropLastDigit(leftKeyUpdate);
+				rightKeyUpdate = cropLastDigit(rightKeyUpdate);
+				
+				
+				if(!(containsLeft || containsRight)) {
+					containsAssumption = false;
+				}
+				
+				leftKeyUpdate = leftKeyUpdate + keyTracker;
+				rightKeyUpdate = rightKeyUpdate + keyTracker;
+				keyTracker++;
+			}
+		}
+		
+		// At this point, we now have two array lists containing the keys of all of the 
+		// propositions in lines matching left and right. What we have to do now is work
+		// out if they (a) bookend an assumption, and (b) if that assumption is only one
+		// line deeper than the current depth.
+		
+		for(String lKey : prospectiveOpenAssumptions) {
+			// Check that assumptions contains the key
+			if(!(assumptions.containsKey(lKey))) {
+				continue;
+			// Check that the assumption behind the key is closed
+			} else if(!assumptions.get(lKey).isClosed()) {
+				continue;
+			// Check that the assumption behind the key is only one deeper than the current depth
+			} else if((assumptions.get(lKey).getStartLine().getAssumptionDepth() - 1) != assumptionDepth) {
+				continue;
+			// Now, finally, with all those conditions satisfied, we can search to see if it is closed:
+			} else {
+				for(String rKey : prospectiveCloseAssumptions) {
+
+					if(assumptions.get(lKey).equalsEndLine(rKey)) {
+						returnArray[0] = lKey;
+						returnArray[1] = rKey;
+						
+						return returnArray;
+					} else {
+						continue;
+					}
+				}
+			}
+		}
+		
+		// If we get to this point, then we've been through all of the closed assumptions and
+		// found that none of them have the right closing line, so we return false.
+		return returnArray;
+	}
+	
+	/**
+	 * Method for removing the last digit from a key.
+	 * @param key
+	 * @return
+	 */
+	public String cropLastDigit(String key) {
+		String digitsRegex = "[0-9]+";
+		if(key.substring(key.length()-1).matches(digitsRegex)){
+			return key.substring(0, key.length()-1);
+		} else {
+			return key;
+		}
+	}
+	
+	/**
+	 * Method to replace all terms with a '_'
+	 * @param key
+	 * @return
+	 */
+	public String getPropFrame(String key) {
+		StringBuilder returnString = new StringBuilder();
+		
+		for(int i = 0; i < key.length(); i++) {
+			String substring = key.substring(i, i+1);
+			if(substring.matches("[a-z]")) {
+				returnString.append("_");
+			} else if(substring.matches("[1-9]")) {
+				continue;
+			} else {
+				returnString.append(substring);
+			}
+		}
+		
+		return returnString.toString();
+	}
+	
+	/**
+	 * Method determining whether or not the conclusion has been reached.
+	 * @return
+	 */
+	public boolean conclusionReached() {
+		if(hasConclusion) {
+			//THIS CONDITIONAL JUST APPENDS THE CONGRATS MESSAGE IF YOU REACH YOUR CONCLUSION!
+			//Maybe include a boolean conclusionReached?
+			if((lines.size() != 0) && (lines.get(lineNumber -2).getProp().equals(conclusion.getProp()))){
+				return true;
+			} else {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+	
+	public int identityIntroduction(ProofLine thisLine) {
+		int returnValue = 0;
+		AtomicForm identityProp = (AtomicForm) thisLine.getProp();
+		Term leftTerm = identityProp.getTerms()[0];
+		Term rightTerm = identityProp.getTerms()[1];
+		if((leftTerm.getType().equals("CONSTANT") && rightTerm.getType().equals("CONSTANT"))){
+			if(leftTerm.equals(rightTerm.getKey())){
+				returnValue = 1;
+			}
+		}
+		return returnValue;
+	}
+	
+	/**
+	 * Introduction method for the existential quantifier.
+	 * @param thisLine
+	 * @return
+	 */
+	public int existentialIntroduction(ProofLine thisLine) {
+		
+		int returnValue = 0;
+		QuantProp thisLineProp = (QuantProp) thisLine.getProp();
+		Term existentialTerm = thisLineProp.getTerm();
+		Proposition thisLinePropGetProp = thisLineProp.getProp();
+		// We need to go through all of the terms which are contained in an open assumption
+		// We try to eliminate the existential statement with each one
+		// We search the lines for the resultant key
+		// if it contains it, we return its line number
+		// if it doesn't, we keep searching
+		
+		for(int i = 0; i < constantsInUndischargedAssumptions.size(); i++) {
+			for(Term term : constantsInUndischargedAssumptions.get(i)) {
+				
+				Proposition thisLinePropGetPropClone = thisLinePropGetProp.deepClone();
+				Proposition substituted = replaceAllTermInstances(existentialTerm, term, thisLinePropGetPropClone);
+				int lineNum = searchForKey(substituted.generateKey());
+				
+				if(lineNum == 0) {
+					continue;
+				} else { 
+					
+					return lineNum;
+				}
+			}
+		}
+		
+		return returnValue;
+	}
+	
+	/**
+	 * Method for the introduction of the universal quantifier.
+	 * @param thisLine
+	 * @return
+	 */
+	public int universalIntroduction(ProofLine thisLine) {
+		
+		// We return an integer. The integer returned is the line number
+		// that we are elminating from. 
+		/*
+		 * Step 1: Take the first name from the ArrayList of constants
+		 * Step 2(i): Check if the name occurs in any undischarged assumption. If it does, continue.
+		 * Step 2: Store the term the quantifier ranges over. Iterate through
+		 * the quantprop's proposition, and replace each instance of that term with the
+		 * name.
+		 * Step 3: Get the new proposition's key, and check if the proof contains that key.
+		 * Step 4: If the proof does, check that it isn't in a closed assumption. If it is,
+		 * append an index to the key, and try again.
+		 * Step 5: If the key isn't found, do the same thing with the next constant.
+		 * Step 6: If the key is found and it is not in a closed assumption: return the line number of that key.
+		 */
+		
+		// The QuantProp stored in thisLine.
+		QuantProp thisQuantProp = (QuantProp) thisLine.getProp();
+		// The proposition ranged over by thisQuantProp.
+		Proposition quantPropGetProp = thisQuantProp.getProp();
+		// The term stored by thisQuantProp.
+		Term quantPropTerm = thisQuantProp.getTerm();
+		
+		
+		// Here, we now attempt to replace all instances of that quantifier's variable within the proposition
+		// with the current constant. When that is done, we get the key of the resultant proposition, and check
+		// if it is contained within the proof (Step 3).
+		for(Term constant : constantsInProof) {
+			
+			// Return 0 if the constant occurs in an undischarged assumption
+			if(constantInUndischargedAssumption(constant)) {
+				return 0;
+			} 
+			
+			Term currentConstant = constant;
+			Proposition propCopy = quantPropGetProp.deepClone();
+			propCopy = replaceAllTermInstances(quantPropTerm, currentConstant, propCopy);
+			String substitutedPropKey = propCopy.generateKey();
+			// Search for key returns the line number of the key if it is present and not in a closed assumption.
+			int keyFound = searchForKey(substitutedPropKey);
+			if(keyFound == 0) {
+				continue;
+			} else {
+				return keyFound;
+			}
+		}
+		return 0;
+	}
+	
+	/**
+	 * Method for adding constants to the list of constants stored in the proof.
+	 * @param thisLine
+	 */
+	public void addToConstantsInProof(ProofLine thisLine) {
+		Proposition thisLineProp = thisLine.getProp();
+		addToConstantsInProofHelper(thisLineProp);
+		
+	}
+	/**
+	 * Helper method for addToConstantsInProof. 
+	 * @param prop
+	 * @return
+	 */
+	public Proposition addToConstantsInProofHelper(Proposition prop) {
+		String generalType = getPropositionType(prop);
+		String currentType = prop.getType();
+		
+		switch (generalType) {
+		case "BinaryProp":
+			BinaryProp propAsBinary = (BinaryProp) prop;
+			return new BinaryProp(currentType, addToConstantsInProofHelper(propAsBinary.getLeftProp()),
+					addToConstantsInProofHelper(propAsBinary.getRightProp()));
+		case "UnaryProp":
+			UnaryProp propAsUnary = (UnaryProp) prop;
+			return new UnaryProp(currentType, addToConstantsInProofHelper(propAsUnary.getProp()));
+		case "QuantProp":
+			QuantProp propAsQuant = (QuantProp) prop;
+			return new QuantProp(currentType, propAsQuant.getTerm(), addToConstantsInProofHelper(propAsQuant.getProp()));
+		case "AtomicForm":
+			AtomicForm propAsAtom = (AtomicForm) prop;
+			if(currentType.equals("ATOMIC")) {
+				return prop;
+			} else if(currentType.equals("PREDICATE") || currentType.equals("IDENTITY")) {
+				for(int i = 0; i < propAsAtom.getTerms().length; i++) {
+					Term currentTerm = propAsAtom.getTerms()[i];
+					if(currentTerm.getType().equals("CONSTANT")) {
+						constantsInProof.add(currentTerm);
+					}
+				}
+				/*
+				 * propAsAtom will now be the original AtomicForm with all instances of the replace term replaced by 
+				 * the replaceWith term.
+				 */
+				return propAsAtom;
+			} else {
+				throw new IllegalArgumentException("Error identifying atomic type");
+			}
+		default: 
+			throw new IllegalArgumentException("Error in fetching proposition type");	
+		}
+	}
+	
+	/**
+	 * This method takes a ProofLine as input and adds its constants to the list
+	 * of constants in undischarged assumptions.
+	 * @param thisLine
+	 */
+	public void addToConstantsInUndischargedAssumptions(ProofLine thisLine) {
+		int thisLineAssumptionDepth = assumptionDepth;
+		Proposition thisLineProp = thisLine.getProp();
+		while(constantsInUndischargedAssumptions.size() < assumptionDepth+1) {
+			constantsInUndischargedAssumptions.add(new HashSet<Term>());
+		}
+		addToConstantsInUndischargedAssumptionsHelper(thisLineProp, thisLineAssumptionDepth);
+	}
+	
+	/**
+	 * Method which takes as input a proposition and an assumption depth, and iterates through that
+	 * proposition to find any constants contained within it. If constants are found, then the 
+	 * constant is added to the ArrayList of constants contained in undischarged assumptions at the
+	 * relevant position.
+	 * @param prop
+	 * @param assumptionDepth
+	 * @return
+	 */
+	public Proposition addToConstantsInUndischargedAssumptionsHelper(Proposition prop, int assumptionDepth) {
+		String generalType = getPropositionType(prop);
+		String currentType = prop.getType();
+		
+		switch (generalType) {
+		case "BinaryProp":
+			BinaryProp propAsBinary = (BinaryProp) prop;
+			return new BinaryProp(currentType, addToConstantsInUndischargedAssumptionsHelper(propAsBinary.getLeftProp(), assumptionDepth),
+					addToConstantsInUndischargedAssumptionsHelper(propAsBinary.getRightProp(), assumptionDepth));
+		case "UnaryProp":
+			UnaryProp propAsUnary = (UnaryProp) prop;
+			return new UnaryProp(currentType, addToConstantsInUndischargedAssumptionsHelper(propAsUnary.getProp(), assumptionDepth));
+		case "QuantProp":
+			QuantProp propAsQuant = (QuantProp) prop;
+			return new QuantProp(currentType, propAsQuant.getTerm(), addToConstantsInUndischargedAssumptionsHelper(propAsQuant.getProp(), assumptionDepth));
+		case "AtomicForm":
+			AtomicForm propAsAtom = (AtomicForm) prop;
+			if(currentType.equals("ATOMIC")) {
+				return prop;
+			} else if(currentType.equals("PREDICATE") || currentType.equals("IDENTITY")) {
+				for(int i = 0; i < propAsAtom.getTerms().length; i++) {
+					Term currentTerm = propAsAtom.getTerms()[i];
+					if(currentTerm.getType().equals("CONSTANT")) {
+						
+						constantsInUndischargedAssumptions.get(constantsInUndischargedAssumptions.size()-1).add(currentTerm);
+					}
+				}
+				/*
+				 * propAsAtom will now be the original AtomicForm with all instances of the replace term replaced by 
+				 * the replaceWith term.
+				 */
+				return propAsAtom;
+			} else {
+				throw new IllegalArgumentException("Error identifying atomic type");
+			}
+		default: 
+			throw new IllegalArgumentException("Error in fetching proposition type");	
+		}
+	}
+	
+	/**
+	 * Method for determining if a given term is stored in an undischarged assumption.
+	 * @param thisTerm
+	 * @return
+	 */
+	public boolean constantInUndischargedAssumption(Term thisTerm) {
+		
+		boolean constantInUndischargedAssumption = false;
+		
+		for(HashSet<Term> setOfTerms : constantsInUndischargedAssumptions) {
+			for(Term term : setOfTerms) {
+				if(term.equals(thisTerm.getKey())) {
+					return true;
+				}
+			}
+		}
+		return constantInUndischargedAssumption;
+	}
+	
+	/*
+	 * This method takes as input a variable, a constant and a proposition. It iterates recursively
+	 * through the proposition until it reaches an atomic formula. Then, it attempts to replace
+	 * all instances of the variable with the constant. If the 
+	 */
+	public Proposition replaceAllTermInstances(Term replace, Term replaceWith, Proposition prop) {
+		
+		String generalType = getPropositionType(prop);
+		String currentType = prop.getType();
+		
+		switch (generalType) {
+		case "BinaryProp":
+			BinaryProp propAsBinary = (BinaryProp) prop;
+			return new BinaryProp(currentType, replaceAllTermInstances(replace, replaceWith, propAsBinary.getLeftProp()),
+					                              replaceAllTermInstances(replace, replaceWith, propAsBinary.getRightProp()));
+		case "UnaryProp":
+			UnaryProp propAsUnary = (UnaryProp) prop;
+			return new UnaryProp(currentType, replaceAllTermInstances(replace, replaceWith, propAsUnary.getProp()));
+		case "QuantProp":
+			QuantProp propAsQuant = (QuantProp) prop;
+			return new QuantProp(currentType, propAsQuant.getTerm(), replaceAllTermInstances(replace, replaceWith, propAsQuant.getProp()));
+		case "AtomicForm":
+			AtomicForm propAsAtom = (AtomicForm) prop;
+			if(currentType.equals("ATOMIC")) {
+				return prop;
+			} else if(currentType.equals("PREDICATE") || currentType.equals("IDENTITY")) {
+				for(int i = 0; i < propAsAtom.getTerms().length; i++) {
+					Term currentTerm = propAsAtom.getTerms()[i];
+					if(currentTerm.equals(replace.getKey())) {
+						
+						/*
+						 * If the term is the same as the term to be replaced, we replace it, and continue iterating.
+						 */
+						propAsAtom.replaceTerm(i, replaceWith); 
+						continue;
+					
+						/*
+						 * If the proposition already contains the term we are attempting to replace, then we return the 
+						 * original proposition unchanged. This situation should be handled by the calling method.
+						 * this situation can't arise!
+						 */
+					
+					} else {
+						continue;
+					}
+				}
+				/*
+				 * propAsAtom will now be the original AtomicForm with all instances of the replace term replaced by 
+				 * the replaceWith term.
+				 */
+				return propAsAtom;
+			} else {
+				throw new IllegalArgumentException("Error identifying atomic type");
+			}
+		default: 
+			throw new IllegalArgumentException("Error in fetching proposition type");	
+		}
+	}
+	
+	/**
+	 * Method returning the type of a Proposition.
+	 * @param prop
+	 * @return
+	 */
+	public String getPropositionType(Proposition prop) {
+		String currentType = prop.getType();
+		switch (currentType) {
+			case "AND":
+				return "BinaryProp";
+			case "OR":
+				return "BinaryProp";
+			case "IFTHEN":
+				return "BinaryProp";
+			case "IFF":
+				return "BinaryProp";
+			case "NOT":
+				return "UnaryProp";
+			case "FORALL":
+				return "QuantProp";
+			case "FORSOME":
+				return "QuantProp";
+			case "PREDICATE":
+				return "AtomicForm";
+			case "IDENTITY":
+				return "AtomicForm";
+			case "ATOMIC":
+				return "AtomicForm";
+			default:
+				throw new IllegalArgumentException("Proposition has been stored with an illegal type");
+		}
+	}
+	
+	/**
+	 * Method for applying elimination rules and derived rules.
+	 * @param thisLine
+	 * @return
+	 */
+	public String eliminationRules(ProofLine thisLine) {
+		
+		/*
+		 * What we do now, is we go through the entire proof, line by line.
+		 *      For each line, we get its type. 
+		 *      We then check if this line is sufficient to elminate that line.
+		 *      If not, we continue.
+		 *      If so, we return true.
+		 */
+		
+		for(ProofLine currentLine : lines) {
+			
+			if(currentLine.getLineNum() == lineNumber) {
+				break;
+			}
+			
+			Proposition currentProp = currentLine.getProp();
+			String currentType = currentProp.getType();
+			//Proposition thisProp = thisLine.getProp();
+			
+			// WE FIRST CHECK THE DERIVED RULES
+			String derivedRules = derivedRules(currentLine, thisLine);
+			if(!derivedRules.equals(EMPTY)) {
+				return derivedRules;
+			}
+		
+			if(currentType.equals("ATOMIC")) {
+				continue;
+			} else if(currentType.equals("AND")) {
+				String conjEl = conjunctionElimination(currentLine, thisLine);
+				if(conjEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return conjEl;
+				}
+				
+			} else if(currentType.equals("OR")) {
+				String disjEl = disjunctionElimination(currentLine, thisLine);
+				if(disjEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return disjEl;
+				}
+				
+			} else if(currentType.equals("IFTHEN")) {
+				String condEl = conditionalElimination(currentLine, thisLine);
+				if(condEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return condEl;
+				}
+				
+			} else if(currentType.equals("NOT")) {
+				String negaEl = negationElimination(currentLine, thisLine);
+				if(negaEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return negaEl;
+				}
+			} else if(currentType.equals("IFF")) {
+				String bicoEl = biconditionalElimination(currentLine, thisLine);
+				if(bicoEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return bicoEl;
+				}
+			} else if(currentType.equals("FORALL")) {
+				String univEl = universalElimination(currentLine, thisLine);
+				if(univEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return univEl;
+				}
+			} else if(currentType.equals("FORSOME")){
+				String exisEl = existentialElimination(currentLine, thisLine);
+				if(exisEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return exisEl;
+				}
+			} else if(currentType.equals("IDENTITY")) {
+				String idenEl = identityElimination(currentLine, thisLine);
+				if(idenEl.equals(EMPTY)) {
+					continue;
+				} else {
+					return idenEl;
+				}
+			}
+		} 
+		
+		return "1";
+		
+	}
+	
+	/**
+	 * Method for eliminating the conjunction.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String conjunctionElimination(ProofLine currentLine, ProofLine thisLine) {
+		// Current line is the line currently reached by the iterator
+		// This line is the line you are seeking to use to eliminate
+		String returnString = EMPTY;
+		
+		if(!(notInClosedAssumption(currentLine))){
+			return returnString;
+		}
+		
+		BinaryProp currentBinaryProp = (BinaryProp) currentLine.getProp();
+		Proposition thisProp = thisLine.getProp();
+		
+		if(thisProp.equals(currentBinaryProp.getLeftProp()) || thisProp.equals(currentBinaryProp.getRightProp())) {
+			returnString = currentLine.getProp().getUnicode() + "E " + currentLine.getLineNum();
+
+		} 
+		
+		return returnString;
+	}
+	
+	/*
+	 * Method representing disjunction elimination.
+	 * What we need to do now is check all of the closed assumptions. If two different
+	 * closed assumptions each have a key matching each disjunct of the disjunction,
+	 * AND both of those having an endLine = thisLine, then we can use disjunction elimination.
+	 */
+	public String disjunctionElimination(ProofLine currentLine, ProofLine thisLine) {
+		
+		String returnString = EMPTY;
+		
+		if(!notInClosedAssumption(currentLine)) {
+			return returnString;
+		}
+		
+		
+		// Initialise all relevant assumptions.
+		BinaryProp currentDisjunction = (BinaryProp) currentLine.getProp();
+		String leftDisjunctKey = currentDisjunction.getLeftProp().getKey();
+		String rightDisjunctKey = currentDisjunction.getRightProp().getKey();
+		String thisLineKey = thisLine.getKey();
+		
+		// Initialise all line numbers to be returned.
+		int leftDisjunctOpen = 0;
+		int leftDisjunctClose = 0;
+		int rightDisjunctOpen = 0;
+		int rightDisjunctClose = 0;
+		int thisLineNum = currentLine.getLineNum();
+		
+		String[] leftKeyCheck = bookendAssumption(leftDisjunctKey, thisLineKey);
+		if(!leftKeyCheck[0].equals(EMPTY)) {
+		
+			leftDisjunctOpen = lineKeys.get(leftKeyCheck[0]);
+		}
+		if(!leftKeyCheck[1].equals(EMPTY)) {
+			
+			leftDisjunctClose = lineKeys.get(leftKeyCheck[1]);
+		}
+		String[] rightKeyCheck = bookendAssumption(rightDisjunctKey, thisLineKey);
+		if(!rightKeyCheck[0].equals(EMPTY)) {
+			
+			rightDisjunctOpen = lineKeys.get(rightKeyCheck[0]);
+		}
+		if(!rightKeyCheck[1].equals(EMPTY)) {
+			
+			rightDisjunctClose = lineKeys.get(rightKeyCheck[1]);
+		}
+		
+		if(leftDisjunctOpen == 0) {
+			return EMPTY;
+		}
+		if(leftDisjunctClose == 0) {
+			return EMPTY;
+		}
+		if(rightDisjunctOpen == 0) {
+			return EMPTY;
+		}
+		if(rightDisjunctClose == 0) {
+			return EMPTY;
+		}
+		
+		returnString = currentDisjunction.getUnicode() + "E " + thisLineNum + ", " 
+                + leftDisjunctOpen + "-" + leftDisjunctClose + " ," 
+ 		      + rightDisjunctOpen + "-" + rightDisjunctClose;
+		return returnString;
+	}
+	
+	/**
+	 * Method for eliminating the conditional.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String conditionalElimination(ProofLine currentLine, ProofLine thisLine) {
+		 String returnString = EMPTY;
+		 
+		 // We need to check if this line is the consequent, and if the proof contains
+		 // the antecedent.
+		 BinaryProp currentConditional = (BinaryProp) currentLine.getProp();
+		 Proposition prospectiveConsequent = thisLine.getProp();
+		 // If our current line is the consequent of the conditional
+		 if(prospectiveConsequent.equals(currentConditional.getRightProp())) {
+			 String antecedentKey = cropLastDigit(currentConditional.getLeftProp().getKey());
+			 returnString = conditionalAndBiconditionalEliminationHelper(currentConditional, antecedentKey, currentLine, returnString);
+		 }
+		 
+		 return returnString;
+	}
+	
+	/**
+	 * Method for eliminating the biconditional.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String biconditionalElimination(ProofLine currentLine, ProofLine thisLine) {
+		
+		String returnString = EMPTY;
+		BinaryProp currentBiconditional = (BinaryProp) currentLine.getProp();
+		Proposition prospectiveConsequent = thisLine.getProp();
+		// We need to check if this line is contained within the biconditional, and if the proof 
+		// contains the other side of the biconditional.
+		
+		// If our current line is the consequent of the conditional
+		if(prospectiveConsequent.equals(currentBiconditional.getRightProp())) {
+			String antecedentKey = cropLastDigit(currentBiconditional.getLeftProp().getKey());
+			returnString = conditionalAndBiconditionalEliminationHelper(currentBiconditional, antecedentKey, currentLine, returnString);	
+		
+		} else if(prospectiveConsequent.equals(currentBiconditional.getLeftProp())) {
+		// If our current line is the consequent of the conditional
+			String antecedentKey = cropLastDigit(currentBiconditional.getRightProp().getKey());
+			returnString = conditionalAndBiconditionalEliminationHelper(currentBiconditional, antecedentKey, currentLine, returnString);	
+		}
+				 
+		return returnString;
+	}
+	
+	/**
+	 * Helper method for eliminating the conditional and biconditional.
+	 * @param currentConditional
+	 * @param antecedentKey
+	 * @param currentLine
+	 * @param returnString
+	 * @return
+	 */
+	public String conditionalAndBiconditionalEliminationHelper(BinaryProp currentConditional, String antecedentKey, ProofLine currentLine, String returnString) {
+		
+		boolean containsKey = true;
+		int appendToKey = 1;
+		
+		ProofLine antecedentLine = lines.get(lineKeys.get(antecedentKey)-1);
+				 
+		// We now go through all of the lines which have the right key to be the antecedent
+		while(containsKey) {
+		// If the line is also not in a closed assumption, we can update the rule
+			if(lineKeys.containsKey(antecedentKey) && notInClosedAssumption(antecedentLine)) {
+				returnString = currentConditional.getUnicode() + "E " + currentLine.getLineNum() + "," + antecedentLine.getLineNum();
+				
+				containsKey = false;
+			} else {
+				// Otherwise we keep searching
+				antecedentKey = cropLastDigit(antecedentKey) + appendToKey;
+				appendToKey++;
+				
+				
+				if(lineKeys.containsKey(antecedentKey)) {
+					antecedentLine = lines.get(lineKeys.get(antecedentKey)-1);
+				} else { 
+					containsKey = false;
+				}
+			}
+		}
+		
+		return returnString;
+	}
+	
+	/*
+	 * Method for eliminating the negation.
+	 */
+	public String negationElimination(ProofLine currentLine, ProofLine thisLine) {
+		 
+		String returnString = EMPTY;
+		AtomicProp absurd = new AtomicProp("ABSURD");
+		UnaryProp currentNegation = (UnaryProp) currentLine.getProp();
+	
+		if(!thisLine.getProp().equals(absurd)) {
+			return returnString;
+		} 
+		
+		// We have a negation; we need to get the negated element, and check if it is also present.
+		Proposition negatedElement = currentNegation.getProp();
+		String negatedElementKey = cropLastDigit(negatedElement.getKey());
+		
+		
+			
+		boolean containsKey = true;
+		int appendToKey = 1;
+			
+		while(containsKey) {
+			if(lineKeys.containsKey(negatedElementKey)){
+				ProofLine negatedElementLine = lines.get(lineKeys.get(negatedElementKey)-1);
+				if(notInClosedAssumption(negatedElementLine)) {
+					returnString = currentNegation.getUnicode() + "E " + currentLine.getLineNum() + "," + negatedElementLine.getLineNum();
+					containsKey = false;
+				} else {
+					negatedElementKey = cropLastDigit(negatedElementKey) + appendToKey;
+					appendToKey++;
+				}
+			} else {
+				containsKey = false;
+			}
+		}
+			
+		 return returnString;
+	}
+	
+	/**
+	 * Method notInClosedAssumption determines whether or not a given 
+	 * ProofLine is contained within a closed assumption of the proof.
+	 * @param line
+	 * @return
+	 */
+	public boolean notInClosedAssumption(ProofLine line) {
+		
+		int thisDepth = line.getAssumptionDepth();
+		
+		if(thisDepth == 0) {
+			return true;
+		}
+		
+		int thisLineNum = line.getLineNum();
+		
+		// code snippet for iterating through a hashmap using entry set generously lifted from 
+		// https://stackoverflow.com/questions/1066589/iterate-through-a-hashmap
+	    
+	    for(Map.Entry<String, Assumption> entry : assumptions.entrySet()) {
+	    	
+	    	Assumption assumption = entry.getValue();
+	    
+	    	
+	    	// If the assumption is closed, we check if this is within the assumption.
+	    	if(assumption.isClosed()) {
+	    		int openLineNum = assumption.getStartLine().getLineNum();
+	    		int closeLineNum = assumption.getEndLine().getLineNum();
+	    		if(thisLineNum >= openLineNum && thisLineNum <=closeLineNum) {
+	    			return false;
+	    		}
+	    	}
+	    }
+		
+		return true;
+	}
+	
+	/**
+	 * This quite a time-intensive function. We cannot just substitute every instance
+	 * of the equality and search for the key because the combinations would be endless.
+	 * Instead, we are going to first check if either operand of the identity is contained
+	 * within this line. If not, then this line can't possibly be an elimination of that
+	 * identity. Next, we're going to move through the proof line by line, and attempt
+	 * to work out if that line has the following properties:
+	 * 1. The same hierarchical structures of main logical operators;
+	 * 2. The same predicates and identity symbols;
+	 * 3. Differences in terms ONLY IF those terms are contained in our identity statement.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String identityElimination(ProofLine currentLine, ProofLine thisLine) {
+
+		String returnString = EMPTY;
+		
+		AtomicForm identityProp = (AtomicForm) currentLine.getProp();
+		Term leftOperand = identityProp.getTerms()[0];
+		Term rightOperand = identityProp.getTerms()[1];
+		
+		Proposition thisLineProp = thisLine.getProp();
+		
+		if(!containsTerm(thisLineProp, leftOperand) && !containsTerm(thisLineProp, rightOperand)) {
+			return returnString;
+		}
+		
+		for(ProofLine searchLine : lines) {
+			Proposition searchProp = searchLine.getProp();
+			if(identityEliminationHelper(searchProp, thisLineProp, identityProp)) {
+				return identityProp.getUnicode() + "E " + currentLine.getLineNum() + "," + searchLine.getLineNum();
+			}
+		}
+		return returnString;
+	}
+	
+	/**
+	 * First check if both props are the same type, and recursively iterate through them to ensure
+	 * that they are of the same type on every level down to the AtomicForm, where their Terms
+	 * are compared against those in the identityProp.
+	 * @param searchProp
+	 * @param thisProp
+	 * @param identityProp
+	 * @return
+	 */
+	public boolean identityEliminationHelper(Proposition searchProp, Proposition thisProp, AtomicForm identityProp) {
+		String generalType = getPropositionType(searchProp);
+		String searchType = searchProp.getType();
+		String thisType = thisProp.getType();
+		
+		if(!searchType.equals(thisType)) {
+			return false;
+		}
+		
+		switch (generalType) {
+		case "BinaryProp":
+			BinaryProp searchPropAsBinary = (BinaryProp) searchProp;
+			BinaryProp thisPropAsBinary = (BinaryProp) thisProp;
+			
+			Proposition searchPropLeftProp = searchPropAsBinary.getLeftProp();
+			Proposition thisPropLeftProp = searchPropAsBinary.getLeftProp();
+			boolean leftPropCheck = identityEliminationHelper(searchPropLeftProp, thisPropLeftProp, identityProp);
+			
+			Proposition searchPropRightProp = searchPropAsBinary.getRightProp();
+			Proposition thisPropRightProp = searchPropAsBinary.getRightProp();
+			boolean rightPropCheck = identityEliminationHelper(searchPropRightProp, thisPropRightProp, identityProp);
+			
+			return leftPropCheck && rightPropCheck;
+					
+		case "UnaryProp":
+			UnaryProp searchPropAsUnary = (UnaryProp) searchProp;
+			UnaryProp thisPropAsUnary = (UnaryProp) thisProp;
+			
+			return identityEliminationHelper(searchPropAsUnary, thisPropAsUnary.getProp(), identityProp);
+			
+		case "QuantProp":
+			QuantProp searchPropAsQuant = (QuantProp) searchProp;
+			QuantProp thisPropAsQuant = (QuantProp) thisProp;
+			
+			return identityEliminationHelper(searchPropAsQuant, thisPropAsQuant.getProp(), identityProp);
+			
+		case "AtomicForm":
+			AtomicForm searchPropAsAtom = (AtomicForm) searchProp;
+			AtomicForm thisPropAsAtom = (AtomicForm) thisProp;
+			
+			if(searchType.equals("ATOMIC")) {
+				return true;
+			} else if(searchType.equals("PREDICATE") || searchType.equals("IDENTITY")) {
+				
+				int searchPropTermsLength = searchPropAsAtom.getTerms().length;
+				int thisPropTermsLength = thisPropAsAtom.getTerms().length;
+				
+				if(searchPropTermsLength != thisPropTermsLength) {
+					return false;
+				}
+				
+				for(int i = 0; i < searchPropAsAtom.getTerms().length; i++) {
+					Term searchTerm = searchPropAsAtom.getTerms()[i];
+					Term thisTerm = thisPropAsAtom.getTerms()[i];
+					Term leftIdentity = identityProp.getTerms()[0];
+					Term rightIdentity = identityProp.getTerms()[1];
+					
+					boolean searchTermInIdentity = searchTerm.equals(leftIdentity.getKey()) || searchTerm.equals(rightIdentity.getKey());
+					boolean thisTermInIdentity = thisTerm.equals(leftIdentity.getKey()) || thisTerm.equals(rightIdentity.getKey());
+					
+					/*
+					 * Check that either both terms are in the identity statement, or they are identical
+					 */
+					if(searchTermInIdentity && thisTermInIdentity) {
+						continue;
+					} else if(thisTerm.equals(searchTerm.getKey())){
+						continue;
+					} else {
+						return false;
+					}
+				}
+				return true;
+			} else {
+				throw new IllegalArgumentException("Error identifying atomic type");
+			}
+		default: 
+			throw new IllegalArgumentException("Error in fetching proposition type");	
+		}
+	}
+	
+	
+	
+	/**
+	 * Method for eliminating the existential quantifier.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String existentialElimination(ProofLine currentLine, ProofLine thisLine) {
+		String returnString = EMPTY;
+		QuantProp existentialProp = (QuantProp) currentLine.getProp();
+		Term existentialTerm = existentialProp.getTerm();
+		Proposition existentialPropGetProp = existentialProp.getProp();
+		Proposition thisProp = thisLine.getProp();
+		/*
+		 * We need to know if there is a closed assumption at a depth one deeper than the 
+		 * current level which ends in the proposition stored in thisLine.
+		 *      Once we have all of those, we can go through them, and check if
+		 * currentLine = existentialIntroduction on the opening line. If so, then
+		 * we can eliminate the existential.
+		 */
+		
+		for(Term currentTerm : constantsInProof) {
+			
+			/*
+			 * If the term is contained in an undischarged assumption, of if it is contained in
+			 * the existential proposition already, or if it is contained in the derivation, then
+			 * we move onto the next term.
+			 */
+			if(constantInUndischargedAssumption(currentTerm)) {
+				continue;
+			} else if(containsTerm(existentialProp, currentTerm)) {
+				continue;
+			} else if(containsTerm(thisProp, currentTerm)) {
+				continue;
+			}
+			
+			Proposition propCopy = existentialPropGetProp.deepClone();
+			propCopy = replaceAllTermInstances(existentialTerm, currentTerm, propCopy);
+			
+			String substitutedPropKey = propCopy.generateKey();
+		
+			if(lineKeys.containsKey(substitutedPropKey)) {
+			
+				ArrayList<String> keysToCheck = new ArrayList<String>();
+				keysToCheck.add(substitutedPropKey);
+				int keyTracker = 1;
+				keysToCheck.add(substitutedPropKey);
+				while(keyTracker > 0) {
+					String newKey = substitutedPropKey + keyTracker;
+					if(lineKeys.containsKey(newKey)) {
+						keysToCheck.add(newKey);
+						keyTracker++;
+					} else {
+						keyTracker = 0;
+					}
+				}
+				for(String key : keysToCheck) {
+					
+					if(!assumptions.containsKey(key)) {
+						continue;
+					}
+					
+					boolean isClosed = assumptions.get(key).isClosed();
+					boolean oneDeeper = (assumptions.get(key).getStartLine().getAssumptionDepth()-1) == thisLine.getAssumptionDepth();
+					if(isClosed && oneDeeper) {
+						Proposition closingProp = assumptions.get(key).getEndLine().getProp();
+						if(closingProp.equals(thisLine.getProp())) {
+							return currentLine.getProp().getUnicode() + "E " + currentLine.getLineNum() + ", " +
+						        assumptions.get(key).getStartLine().getLineNum() + "-" + assumptions.get(key).getEndLine().getLineNum();
+						}
+					} else {
+						continue;
+					}
+				}
+			} else {
+				continue;
+			}
+			
+		}
+		
+		return returnString;
+	}
+	
+	/**
+	 * Method for determining if a Proposition contains a given Term.
+	 * @param prop
+	 * @param term
+	 * @return
+	 */
+	public boolean containsTerm(Proposition prop, Term term) {
+		String generalType = getPropositionType(prop);
+		String currentType = prop.getType();
+		
+		switch (generalType) {
+		case "BinaryProp":
+			BinaryProp propAsBinary = (BinaryProp) prop;
+			return containsTerm(propAsBinary.getLeftProp(), term) || containsTerm(propAsBinary.getRightProp(), term);
+		case "UnaryProp":
+			UnaryProp propAsUnary = (UnaryProp) prop;
+			return containsTerm(propAsUnary.getProp(), term);
+		case "QuantProp":
+			QuantProp propAsQuant = (QuantProp) prop;
+			return containsTerm(propAsQuant.getProp(), term);
+		case "AtomicForm":
+			AtomicForm propAsAtom = (AtomicForm) prop;
+			if(currentType.equals("ATOMIC")) {
+				return false;
+			} else if(currentType.equals("PREDICATE") || currentType.equals("IDENTITY")) {
+				for(int i = 0; i < propAsAtom.getTerms().length; i++) {
+					Term currentTerm = propAsAtom.getTerms()[i];
+					if(currentTerm.equals(term.getKey())) {
+						return true; 
+					}
+				}
+				return false;
+			} else {
+				throw new IllegalArgumentException("Error identifying atomic type");
+			}
+		default: 
+			throw new IllegalArgumentException("Error in fetching proposition type");	
+		}
+	}
+	
+	/**
+	 * Method for eliminating the universal quantifier.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String universalElimination(ProofLine currentLine, ProofLine thisLine) {
+		String returnString = EMPTY;
+		if(!notInClosedAssumption(currentLine)) {
+			return returnString;
+		}
+		
+		QuantProp currentProp = (QuantProp) currentLine.getProp();
+		Proposition currentPropProp = currentProp.getProp();
+		Term currentPropTerm = currentProp.getTerm();
+		Proposition thisProp = thisLine.getProp();
+		
+		/*
+		 * Compare the two propositions to make sure they are the same type. If they are,
+		 * then pass their subtypes down
+		 */
+		String universalEliminationTerm = universalEliminationHelper(currentPropProp, thisProp, currentPropTerm);
+		if(!universalEliminationTerm.equals("BAD") && !universalEliminationTerm.equals(EMPTY)) {
+			returnString = currentLine.getProp().getUnicode() + "E " + currentLine.getLineNum();
+			Term term = new Term(universalEliminationTerm);
+		}
+		
+		
+		
+		return returnString;
+	}
+	
+	/*
+	 * Method takes two propositions and the variable to be eliminated as input, and returns a String
+	 * which can either be bad, EMPTY or other. If it's bad, then it's an immediate violation and this
+	 * proposition is not universal elimination. If it's empty, it might be universal elimination. If it's
+	 * other, it might be universal elimination (depending on analysis by the calling method).
+	 */
+	public String universalEliminationHelper(Proposition currentProp, Proposition thisProp, Term eliminate) {
+		String bad = "BAD";
+		if(!currentProp.getType().equals(thisProp.getType())) {
+			return bad;
+		}
+		
+		String generalType = getPropositionType(currentProp);
+		String specificType = currentProp.getType();
+		
+		switch (generalType) {
+		case "BinaryProp":
+			
+			BinaryProp currentPropAsBinary = (BinaryProp) currentProp;
+			BinaryProp thisPropAsBinary = (BinaryProp) thisProp;
+			String leftCheck = universalEliminationHelper(currentPropAsBinary.getLeftProp(), thisPropAsBinary.getLeftProp(), eliminate);
+			String rightCheck =universalEliminationHelper(currentPropAsBinary.getRightProp(), thisPropAsBinary.getRightProp(), eliminate);
+			// If both values are the same, we return either empty, bad or the value
+			if(leftCheck.equals(rightCheck)) {
+				if(leftCheck.equals(EMPTY)) {
+					return EMPTY;
+				} else if(leftCheck.equals(bad)) {
+					return bad;
+				} else {
+					return leftCheck;
+				}
+			} else {
+				// if either value is bad, we return bad
+				if(leftCheck.equals(bad) || rightCheck.equals(bad)) {
+					return bad;
+				// If one is empty and the other isn't return the nonempty one
+				} else if(leftCheck.equals(EMPTY) && !rightCheck.equals(EMPTY)) {
+					return rightCheck;
+				// If one is empty and the other isn't, return the nonempty one
+				} else if(!leftCheck.equals(EMPTY) && rightCheck.equals(EMPTY)) {
+					return leftCheck;
+				// If they're different otherwise, return bad.
+				} else {
+					return bad;
+				}
+			}
+		case "UnaryProp":
+			
+			UnaryProp currentPropAsUnary = (UnaryProp) currentProp;
+			UnaryProp thisPropAsUnary = (UnaryProp) thisProp;
+			String unaryPropCheck = universalEliminationHelper(currentPropAsUnary.getProp(), thisPropAsUnary.getProp(), eliminate);
+			if(unaryPropCheck.equals(bad)) {
+				return bad;
+			} else if(unaryPropCheck.equals(EMPTY)) {
+				return EMPTY;
+			} else {
+				return unaryPropCheck;
+			}
+		case "QuantProp":
+			
+			QuantProp currentPropAsQuant = (QuantProp) currentProp;
+			QuantProp thisPropAsQuant = (QuantProp) thisProp;
+			String quantPropCheck = universalEliminationHelper(currentPropAsQuant.getProp(), thisPropAsQuant.getProp(), eliminate);
+			if(quantPropCheck.equals(bad)) {
+				return bad;
+			} else if(quantPropCheck.equals(EMPTY)) {
+				return EMPTY;
+			} else {
+				return quantPropCheck;
+			}
+		case "AtomicForm":
+
+			AtomicForm currentPropAsAtom = (AtomicForm) currentProp;
+			AtomicForm thisPropAsAtom = (AtomicForm) thisProp;
+			if(specificType.equals("ATOMIC")) {
+				return EMPTY;
+			} else if(specificType.equals("PREDICATE") || specificType.equals("IDENTITY")) {
+	
+				// If they have a different number of terms then they must be different.
+				if(currentPropAsAtom.getTerms().length != thisPropAsAtom.getTerms().length) {
+					return bad;
+				}
+				
+				ArrayList<Term> matchedTerms = new ArrayList<Term>();
+				
+				for(int i = 0; i < thisPropAsAtom.getTerms().length; i++) {
+					Term currentTerm = currentPropAsAtom.getTerms()[i];
+					Term thisTerm = thisPropAsAtom.getTerms()[i];
+					String eliminateKey = eliminate.getKey();
+					String currentTermKey = currentTerm.getKey();
+					String thisTermKey = thisTerm.getKey();
+					if(currentTerm.equals(eliminateKey)) {
+						if(matchedTerms.size() > 0) {
+							Term lastMatchedTerm = matchedTerms.get(matchedTerms.size()-1);
+							if(lastMatchedTerm.equals(thisTermKey)) {
+								matchedTerms.add(thisTerm);
+							} else {
+								return bad;
+							}
+						} else {
+							matchedTerms.add(thisTerm);
+						}
+						
+					} else {
+						continue;
+					}
+				}
+				
+				if(matchedTerms.size() == 0) {
+					return bad;
+				} else {
+					return matchedTerms.get(0).getTerm();
+				}
+				
+				/*
+				 * propAsAtom will now be the original AtomicForm with all instances of the replace term replaced by 
+				 * the replaceWith term.
+				 */
+			
+			} else {
+				throw new IllegalArgumentException("Error identifying atomic type");
+			}
+		default: 
+			throw new IllegalArgumentException("Error in fetching proposition type");	
+		}
+		
+	}
+	
+	/**
+	 * Method used to apply the derived rules.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String derivedRules(ProofLine currentLine, ProofLine thisLine) {
+		
+		String returnString = EMPTY;
+		
+		Proposition currentProp = currentLine.getProp();
+		Proposition thisProp = thisLine.getProp();
+		
+		//GOING THROUGH EXTRA RULES BEFORE HITTING ELIMINATION RULES
+		//REITERATION
+		if(currentProp.equals(thisProp) && notInClosedAssumption(currentLine)) {
+			
+			return "Reit " + currentLine.getLineNum();
+		} 
+		//EXPLOSION / EX FALSO QUODLIBET
+		// If there is an absurdity not in a closed assumption, then it is a valid inference.
+		if(lineKeys.containsKey("(ABSURD)") && notInClosedAssumption(lines.get(lineKeys.get("(ABSURD)")-1))) {
+			return "X " + lineKeys.get("(ABSURD)");
+		}
+		//TND (HAS A SEPARATE METHOD)
+		//note that so far it might return the negated element line nums before the nonneg ones
+		String[] tNDProp = tertiumNonDatur(currentLine, thisLine);
+		if((!tNDProp[0].equals(EMPTY) && !tNDProp[1].equals(EMPTY)) && (!tNDProp[2].equals(EMPTY) && !tNDProp[3].equals(EMPTY))) {
+			return "TND " + lineKeys.get(tNDProp[0]) + "-" + lineKeys.get(tNDProp[1]) + "," + lineKeys.get(tNDProp[2]) + "-" + lineKeys.get(tNDProp[3]);
+		}
+		//DOUBLE NEGATION ELIMINATION: If currentLine is a negation, and if its prop is a negation
+		if(currentLine.getProp().getType().equals("NOT") && ((UnaryProp) currentLine.getProp()).getProp().getType().equals("NOT")) {
+			UnaryProp outerNegation = (UnaryProp) currentLine.getProp();
+			UnaryProp innerNegation = (UnaryProp) outerNegation.getProp();
+			Proposition negatedElement = innerNegation.getProp();
+			ProofLine copyLine = new ProofLine(currentLine.getLineNum(), currentLine.getKeyword(), outerNegation, currentLine.getAssumptionDepth(), thisLine.getRule());
+			if(negatedElement.equals(thisProp) && notInClosedAssumption(currentLine)) {
+				return "DNE " + currentLine.getLineNum();
+			}
+		}
+		//MODUS TOLLENS (HAS A SEPARATE METHOD)
+		if(currentLine.getProp().getType().equals("IFTHEN")) {
+			String modusTollens = modusTollens(currentLine, thisLine);
+			if(!modusTollens.equals(EMPTY)) {
+				return modusTollens;
+			}
+		}
+		//DISJUNCTIVE SYLLOGISM (HAS A SEPARATE METHOD)
+		if(currentLine.getProp().getType().equals("OR")) {
+			String disjunctiveSyllogism = disjunctiveSyllogism(currentLine, thisLine);
+			if(!disjunctiveSyllogism.equals(EMPTY)) {
+				return disjunctiveSyllogism;
+			}
+		}
+		
+		// Check if they're both in deMorgan's form.
+		int deMCurrentLine = deMorganChecker(currentLine);
+		int deMThisLine = deMorganChecker(thisLine);
+		boolean deMForm1 = deMCurrentLine == 1 && deMThisLine == 2;
+		boolean deMForm2 = deMCurrentLine == 2 && deMThisLine == 1;
+		boolean deMForm3 = deMCurrentLine == 3 && deMThisLine == 4;
+		boolean deMForm4 = deMCurrentLine == 4 && deMThisLine == 3;
+		if(deMForm1 || deMForm2 || deMForm3 || deMForm4) {
+			return "DeM " + currentLine.getLineNum();	
+		}
+		
+		// Check if they're of the conversion of quantifiers form.
+		int conQuantCurrLine = conversionOfQuantifiersChecker(currentLine);
+		int conQuantThisLine = conversionOfQuantifiersChecker(thisLine);
+		boolean conQuantForm1 = conQuantCurrLine == 1 && conQuantThisLine == 2;
+		boolean conQuantForm2 = conQuantCurrLine == 2 && conQuantThisLine == 1;
+		boolean conQuantForm3 = conQuantCurrLine == 3 && conQuantThisLine == 4;
+		boolean conQuantForm4 = conQuantCurrLine == 4 && conQuantThisLine == 3;
+		if(conQuantForm1 || conQuantForm2 || conQuantForm3 || conQuantForm4) {
+			return "CQ " + currentLine.getLineNum();
+		}
+		
+		return returnString;
+	}
+	
+	// Method determining if a given line is in relevant form for conversion of quantifiers.
+		// Returns 0 if not, or 1-4 depending on the form:
+		// 1: FORALL(x)(NOT(A))
+		// 2: NOT(FORSOME(x)(A))
+		// 3: FORSOME(x)(NOT(A))
+		// 4: NOT(FORALL(x)(A))
+	public int conversionOfQuantifiersChecker(ProofLine line) {
+		int notCQForm = 0;
+		Proposition lineProp = line.getProp();
+		String outerLineType = lineProp.getType();
+		if(outerLineType.equals("FORALL") || outerLineType.equals("FORSOME")) {
+			QuantProp quantProp = (QuantProp) lineProp;
+			Proposition quantPropProp = quantProp.getProp();
+			if(outerLineType.equals("FORALL") && quantPropProp.getType().equals("NOT")) {
+				return 1;
+			} else if(outerLineType.equals("FORSOME") && quantPropProp.getType().equals("NOT")){
+				return 3;
+			} else {
+				return notCQForm;
+			}
+		} else if(outerLineType.equals("NOT")) {
+			UnaryProp unaryProp = (UnaryProp) lineProp;
+			Proposition unaryPropProp = unaryProp.getProp();
+			String unaryPropPropType = unaryPropProp.getType();
+			if(unaryPropPropType.equals("FORSOME")) {
+				return 2;
+			} else if(unaryPropPropType.equals("FORALL")) {
+				return 4;
+			} else {
+				return notCQForm;
+			}
+		} else {
+			return notCQForm;
+		}
+	}
+	
+	// Method determining if a given line is in deMorgan's form.
+	// Returns 0 if not, or 1-4 depending on the form:
+	// 1: NOT(A AND B)
+	// 2: (NOT A OR NOT B)
+	// 3: NOT(A OR B)
+	// 4: (NOT A AND NOT B)
+	public int deMorganChecker(ProofLine line) {
+		int returnInt = 0;
+		
+		// 4: (NOT A AND NOT B)
+		if(line.getProp().getType().equals("AND")) {
+			BinaryProp conjunction = (BinaryProp) line.getProp();
+			if(conjunction.getLeftProp().getType().equals("NOT") &&
+					conjunction.getRightProp().getType().equals("NOT")) {
+				returnInt = 4;
+				return returnInt;
+			}
+		// 2: (NOT A OR NOT B)
+		} else if(line.getProp().getType().equals("OR")) {
+			BinaryProp disjunction = (BinaryProp) line.getProp();
+			if(disjunction.getLeftProp().getType().equals("NOT") &&
+					disjunction.getRightProp().getType().equals("NOT")) {
+				returnInt = 2;
+				return returnInt;
+			}
+		} else if(line.getProp().getType().equals("NOT")) {
+			UnaryProp negation = (UnaryProp) line.getProp();
+			
+			// 1: NOT(A AND B)
+			if(negation.getProp().getType().equals("AND")){
+				returnInt = 1;
+				return returnInt;
+			// 3: NOT(A OR B)
+			} else if(negation.getProp().getType().equals("OR")) {
+				returnInt = 3;
+				return returnInt;
+			}
+		}
+		return returnInt;
+	}
+	
+	/**
+	 * Method for applying the disjunctive syllogism rule.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String disjunctiveSyllogism(ProofLine currentLine, ProofLine thisLine) {
+		String returnString = EMPTY;
+		Proposition thisProp = thisLine.getProp();
+		
+		Proposition leftDisjunct = ((BinaryProp) currentLine.getProp()).getLeftProp();
+		Proposition rightDisjunct = ((BinaryProp) currentLine.getProp()).getRightProp();
+		//IF THISLINE IS THE LEFT DISJUNCT, SEARCH FOR THE NEGATED RIGHT DISJUNCT
+		if(thisProp.equals(leftDisjunct)) {
+			UnaryProp negatedRightDisjunct = new UnaryProp ("NOT", rightDisjunct);
+			int negRightDisLineNum = searchForKey(negatedRightDisjunct.getKey());
+			if(negRightDisLineNum != 0) {
+				return "DS " + currentLine.getLineNum() + "," + negRightDisLineNum;
+			}
+		//IF THISLINE IS THE RIGHT DISJUNCT, SEARCH FOR THE NEGATED LEFT DISJUNCT
+		} else if(thisProp.equals(rightDisjunct)) {
+			UnaryProp negatedLeftDisjunct = new UnaryProp ("NOT", leftDisjunct);
+			int negLeftDisLineNum = searchForKey(negatedLeftDisjunct.getKey());
+			if(negLeftDisLineNum != 0) {
+				return "DS " + currentLine.getLineNum() + "," + negLeftDisLineNum;
+			}
+		} 
+		
+		
+		
+		return returnString;
+	}
+	
+	/**
+	 * Method for applying Modus Tollens
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	public String modusTollens(ProofLine currentLine, ProofLine thisLine) {
+		 String returnString = EMPTY;
+		 
+		 // We need to check if this line is the consequent, and if the proof contains
+		 // the negation of the consequent.
+		 BinaryProp currentConditional = (BinaryProp) currentLine.getProp();
+		 Proposition currentConsequent = currentConditional.getRightProp();
+		 UnaryProp negatedCurrentConsequent = new UnaryProp("NOT", currentConsequent);
+		 Proposition currentAntecedent = currentConditional.getLeftProp();
+		 UnaryProp negatedCurrentAntecedent = new UnaryProp("NOT", currentAntecedent);
+		 
+		 Proposition thisConsequent = thisLine.getProp();
+		 // If our current line is the negation of the antecedent of the conditional, 
+		 // we search for the negation of the consequent.
+		 if(thisConsequent.equals(negatedCurrentAntecedent)) {
+			
+			 int negatedConsequentLine = searchForKey(negatedCurrentConsequent.getKey());
+			 if(negatedConsequentLine != 0) {
+				 returnString = "MT " + currentLine.getLineNum() + "," + negatedConsequentLine;
+			 }
+		 }
+		 return returnString;
+	}
+	
+	/**
+	 * Method taking as input a String key and returning the line number if it is found, or 0
+	 * @param key
+	 * @return
+	 */
+	public int searchForKey(String key) {
+		int returnInt = 0;
+		
+		boolean containsKey = true;
+		int appendToKey = 1;
+		
+		String currentKey = cropLastDigit(key);
+		
+		containsKey = lineKeys.containsKey(currentKey);
+		
+		ProofLine currentLine;
+		
+		if(containsKey) {
+			currentLine = lines.get(lineKeys.get(currentKey)-1);
+		} else {
+			return returnInt;
+		}
+		
+		//ProofLine currentLine = lines.get(lineKeys.get(currentKey)-1);
+		// We now go through all of the lines which have the right key
+		while(containsKey) {
+		// If the line is also not in a closed assumption, we can update the rule
+			if(lineKeys.containsKey(currentKey) && notInClosedAssumption(currentLine)) {
+				returnInt = lineKeys.get(currentKey);
+				containsKey = false;
+			} else {
+				// Otherwise we keep searching
+				currentKey = cropLastDigit(currentKey) + appendToKey;
+				appendToKey++;
+						
+				if(lineKeys.containsKey(currentKey)) {
+					currentLine = lines.get(lineKeys.get(currentKey)-1);
+				} else { 
+					containsKey = false;
+				}
+			}
+		}
+		return returnInt;
+	}
+	
+	/**
+	 * Method for applying the tertium non datur rule.
+	 * @param currentLine
+	 * @param thisLine
+	 * @return
+	 */
+	//If currentProp and thisProp, and notCurrentProp and thisProp, both bookend an assumption
+	// then we can introduced this prop. 
+	// If currentProp is a negation itself, then we check both for its unnegated form and its negated form.
+	public String[] tertiumNonDatur(ProofLine currentLine, ProofLine thisLine) {
+		
+		String currentType = currentLine.getProp().getType();
+		String[] returnString = {EMPTY, EMPTY, EMPTY, EMPTY};
+		
+		
+		//Start with the current element. If it's not there, we can return empty.
+		// If it is, move on.
+		if(currentType.equals("NOT")) {
+			UnaryProp currentNegation = (UnaryProp) currentLine.getProp();
+			Proposition thisProp = thisLine.getProp();
+			
+			String currentNegKey = currentNegation.getKey();
+			String thisKey = thisProp.getKey();
+			String[] currentNegBookend = bookendAssumption(currentNegKey, thisKey);
+			if(currentNegBookend[0].equals(EMPTY) || currentNegBookend[1].equals(EMPTY)){
+				// Return all empties of these don't bookend an assumption.
+				return returnString;
+			} else {
+				returnString[0] = currentNegBookend[0];
+				returnString[1] = currentNegBookend[1];
+			}
+			
+			// Check the negated element. If it also bookends an assumption, we can return all the
+			// line numbers. If it doesn't, we check for the negation of the negation.
+			Proposition negatedElement = currentNegation.getProp();
+			String negElementKey = negatedElement.getKey();
+			String[] negElementBookend = bookendAssumption(negElementKey, thisKey);
+			if(negElementBookend[0].equals(EMPTY) || negElementBookend[1].equals(EMPTY)){
+				UnaryProp negatedNegation = new UnaryProp("NOT", currentNegation);
+				String negNegKey = negatedNegation.getKey();
+				String[] negNegBookend = bookendAssumption(negNegKey, thisKey);
+				if(negNegBookend[0].equals(EMPTY) || negNegBookend[1].equals(EMPTY)){
+					// Return all empties of these don't bookend an assumption.
+					return returnString;
+				} else {
+					returnString[2] = negNegBookend[0];
+					returnString[3] = negNegBookend[1];
+				}
+				
+			} else {
+				returnString[2] = negElementBookend[0];
+				returnString[3] = negElementBookend[1];
+			}
+		}
+		
+		
+		return returnString;
+	}
+	
+	
+	
+	
+	/**
+	 * Print method for printing a line of proof to the command line.
+	 * @return
+	 */
+	public String print() {
+		
+		StringBuilder proofString = new StringBuilder();
+		String assumptionBuffer = "    |";
+		proofString.append(assumptionBuffer + "\n");
+		System.out.print(assumptionBuffer + "\n");
+		for(int i = 0; i < lines.size(); i++) {
+			
+			proofString.append(lines.get(i).print());
+			if((lines.get(i).getKeyword().equals("#PREMISE") && (i != lines.size()-1)) 
+			    && (!lines.get(i+1).getKeyword().equals("#PREMISE"))){
+				proofString.append(createAssumptionBufferHelper(i));
+				proofString.append(createUnderlineHelper(i) + "\n");
+				System.out.println();
+			} else if(lines.get(i).getKeyword().equals("#PREMISE")){
+				proofString.append(createAssumptionBufferHelper(i) + "\n");
+				System.out.println();
+			} else if(lines.get(i).getKeyword().equals("#ASSUME")) {
+				proofString.append(createAssumptionBufferHelper(i));
+				proofString.append(createUnderlineHelper(i) + "\n");
+				System.out.println();
+			} else if(lines.get(i).getKeyword().equals("#DERIVE")) {
+				proofString.append(createAssumptionBufferHelper(i)+"\n");
+				System.out.println();
+			}
+		}
+		if(hasConclusion) {
+			proofString.append(conclusion.print());
+			//THIS CONDITIONAL JUST APPENDS THE CONGRATS MESSAGE IF YOU REACH YOUR CONCLUSION!
+			//Maybe include a boolean conclusionReached?
+			if((lines.size() != 0) && (lines.get(lineNumber -2).getProp().equals(conclusion.getProp())) && (lines.get(lineNumber -2).getKeyword().equals("#DERIVE"))){
+				proofString.append("Conclusion reached! Congrats!\n");
+				System.out.print("Conclusion reached! Congrats!\n");
+			}
+		}
+		return proofString.toString();
+		
+	}
+	
+	/**
+	 * Helper method to create the underline
+	 * @param i
+	 * @return
+	 */
+	public String createUnderlineHelper(int i) {
+		StringBuilder underlineString = new StringBuilder();
+		
+		int underLineLength = lines.get(i).getProp().toString().length();
+		if(underLineLength < 4) {
+			underLineLength = 4;
+		}
+		for(int k = underLineLength; k > 0; k--) { 
+			underlineString.append("-");
+		}
+		
+		System.out.print(underlineString.toString());
+		return underlineString.toString();
+	}
+	/**
+	 * Helper method to create the AssumptionBuffer.
+	 * @param i
+	 * @return
+	 */
+	public String createAssumptionBufferHelper(int i) {
+		StringBuilder returnString = new StringBuilder();
+		String assumptionBuffer = "    |";
+		for(int j = lines.get(i).getAssumptionDepth(); j > 0; j--) {
+			returnString.append(assumptionBuffer);
+			System.out.print(assumptionBuffer);
+		}
+		returnString.append(assumptionBuffer);
+		System.out.print(assumptionBuffer);
+		return returnString.toString();
+	}
+}

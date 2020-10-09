@@ -1,0 +1,779 @@
+/*
+ Note of modulepath for my computer:
+ --module-path C:\Users\M-Rob\Downloads\javafx-sdk-11.0.2\lib 
+ --add-modules=javafx.base 
+ --add-modules=javafx.controls 
+ --add-modules=javafx.fxml 
+ --add-modules=javafx.graphics 
+ --add-modules=javafx.media 
+ --add-modules=javafx.swing 
+ --add-modules=javafx.web
+ */	
+	import java.util.ArrayDeque;
+	import java.util.ArrayList;
+	import java.util.Deque;
+	import java.util.Iterator;
+	import javafx.application.Application;
+	import javafx.event.Event;
+	import javafx.event.EventHandler;
+	import javafx.geometry.Rectangle2D;
+	import javafx.scene.Group;
+	import javafx.scene.Scene;
+	import javafx.scene.control.Button;
+	import javafx.scene.control.Label;
+	import javafx.scene.control.ScrollPane;
+	import javafx.scene.control.ScrollPane.ScrollBarPolicy;
+	import javafx.scene.control.Tab;
+	import javafx.scene.control.TabPane;
+	import javafx.scene.control.TabPane.TabClosingPolicy;
+	import javafx.scene.control.TextArea;
+	import javafx.scene.control.Tooltip;
+	import javafx.scene.layout.HBox;
+	import javafx.scene.layout.Pane;
+	import javafx.scene.layout.Priority;
+	import javafx.scene.layout.Region;
+	import javafx.scene.layout.VBox;
+	import javafx.scene.paint.Color;
+	import javafx.scene.shape.Line;
+	import javafx.scene.text.Font;
+	import javafx.stage.Screen;
+	import javafx.stage.Stage;
+
+	/**
+	 * Class for creating the GUI View. All visual components are laid out 
+	 * here. This class also contains the drawProof method which takes as 
+	 * input a Proof object and outputs a visual representation of that 
+	 * Proof in Fitch style. All spacing is a function of the user's screen size.
+	 * Many field variables as many of these elements need to be accessed by the
+	 * controller class, or by multiple methods within this class. 
+	 * @author M. Robinson.
+	 *
+	 */
+	public class GUIView extends Application {
+
+		/**
+		 * Field variable recording the height and width of the user's screen. Code snippet for this
+		 * borrowed from: https://docs.oracle.com/javafx/2/api/javafx/stage/Screen.html
+		 */
+    	public final static Rectangle2D PRIMARYSCREENBOUNDS = Screen.getPrimary().getVisualBounds();
+    	/**
+         * Field variables representing the x and y coordinates of the screen's upper bounds.
+    	 */
+    	public final static double TOPX = PRIMARYSCREENBOUNDS.getMinX();
+    	public final static double TOPY = PRIMARYSCREENBOUNDS.getMinY();
+    	/**
+    	 * Field variable intialising the width of the scene as the width of the user's screen.
+    	 */
+    	public final static double SCENEWIDTH = PRIMARYSCREENBOUNDS.getWidth();
+    	/**
+    	 * Field variable intialising the height of the scene as the height of the user's screen.
+    	 */
+    	public final static double SCENEHEIGHT = PRIMARYSCREENBOUNDS.getHeight();
+    	
+    	/**
+    	 * OFFSET field variable is used as a buffer between elements.
+    	 */
+    	public final static double OFFSET = SCENEHEIGHT / 50;
+    	
+    	/**
+    	 * PROOFVIEWWIDTH is the width of the area in which the proof view will be displayed.
+    	 */
+    	public final static double PROOFVIEWWIDTH = (SCENEWIDTH / 2) - (2 * OFFSET);
+    	/**
+    	 * proofViewHeight is the height of the area in which the proofView will be displayed 
+    	 */
+    	public static double proofViewHeight = SCENEHEIGHT - (4 * OFFSET);
+    	/**
+    	 * Width of the input text area.
+    	 */
+    	public final static double TEXTAREAWIDTHS = 0.8 * PROOFVIEWWIDTH;
+    	/**
+    	 * Width of the overall user input area.
+    	 */
+    	public final static double USERVIEWWIDTH = PROOFVIEWWIDTH;
+    	/**
+    	 * Height of the overall user input area.
+    	 */
+    	public final static double USERVIEWHEIGHT = 0.9 * SCENEHEIGHT;
+    	
+    	/**
+    	 * Unicode for all symbols of propositional and predicate logic.
+    	 */
+    	public final static String CONJUNCTIONUNICODE = "\u2227";
+    	public final static String DISJUNCTIONUNICODE = "\u2228";
+    	public final static String CONDITIONALUNICODE = "\u2192";
+    	public final static String BICONDITIONALUNICODE = "\u2194";
+    	public final static String NEGATIONUNICODE = "\u00AC";
+    	public final static String UNIVERSALUNICODE = "\u2200";
+    	public final static String EXISTENTIALUNICODE = "\u2203";
+    	public final static String ABSURDUNICODE = "\u22A5";
+    	public final static String IDENTITYUNICODE = "\u003D";
+    	
+    	/**
+    	 * Values of the two different logics, and boolean recording the current
+    	 * logic.
+    	 */
+    	public static final int PROPLOG = 0;
+    	public static final int PREDLOG = 1;
+    	public static int thisLogic;
+    	
+    	/**
+    	 * Default font size of text. Having a separate proofFontSize was initially
+    	 * done to allow the user to change the font size, but there was no time
+    	 * to implement this feature.
+    	 */
+    	public static double defaultFontSize = 13.5;
+    	public static double proofFontSize = defaultFontSize;
+		
+    	/**
+    	 * ArrayList containing the predLog buttons (so that the Controller can
+    	 * easily access them and change their visibility.
+    	 */
+    	public static ArrayList<Button> predLogButtons = new ArrayList<Button>();
+    	/**
+    	 * The area in which the user will input their PRODLOG code.
+    	 */
+    	public static TextArea userInputArea;
+    	/**
+    	 * ScrollPane which will contain the drawing of the Proof.
+    	 */
+    	public static ScrollPane proofView = createProofView();
+    	/**
+    	 * The stage.
+    	 */
+    	public static Stage stage;
+    	/**
+    	 * Message declaring that the conclusion has been reached.
+    	 */
+        public static Label conclusionReached = new Label("Conclusion reached!");
+        /**
+         * Label recording a syntax error.
+         */
+    	public static Label syntaxError = new Label();
+    	
+    	/**
+    	 * Start method to initiate the user interface. 
+    	 */
+	    @Override
+	    public void start(Stage stage) {
+	        initUI(stage);
+	    }
+
+	    /**
+	     * This method initialises the necessary JavaFX components to build
+	     * a Scene graph. At the highest level, it splits the screen into a userView
+	     * (the lefthand side where all user interaction happens), a proofView (the 
+	     * righthand side where the proof is displayed), and the logic tabs at the top.
+	     * It calls the relevant methods to generate these components.
+	     * @param stage
+	     */
+	    private void initUI(Stage stage) {
+	        stage.setX(TOPX);
+	        stage.setY(TOPY);
+	        stage.setWidth(SCENEWIDTH);
+	        stage.setHeight(SCENEHEIGHT);
+	        
+	        Group root = new Group();
+	        
+	        Scene scene = new Scene(root, SCENEWIDTH, SCENEHEIGHT, Color.ALICEBLUE);
+	        
+	        TabPane tabs = createLogicTabs();
+	        Pane userView = createUserView();
+	        proofView = createProofView();
+	        
+	        
+	        root.getChildren().addAll(tabs, proofView, userView);
+	        stage.setScene(scene);
+	        GUIView.stage = stage;
+	        stage.show();
+	    }
+	    
+	    /**
+	     * Method returning the current stage.
+	     * @return
+	     */
+	    public static Stage getStage() {
+	    	return stage;
+	    }
+	    
+	    /**
+	     * Method to set the logic of the GUIView.
+	     * @param i Integer representation of the logic.
+	     */
+	    public static void setLogic(int i) {
+	    	if(i == PROPLOG) {
+	    		thisLogic = PROPLOG;
+	    	} else if(i == PREDLOG) {
+	    		thisLogic = PREDLOG;
+	    	} else {
+	    		throw new IllegalArgumentException("Error! Logic must be set to either 0 for propositional logic, or 1 for predicate logic!");
+	    	}
+	    }
+	    
+	    /**
+	     * Getter for the current logic.
+	     * @return Integer representation of the current logic.
+	     */
+	    public static int getLogic() {
+	    	return thisLogic;
+	    }
+	    
+	    /**
+	     * getter for the user input area's text.
+	     * @return String containing entire content of input TextArea.
+	     */
+	    public static String getUserInputAreaText() {
+	    	return userInputArea.getText();
+	    }
+	    /**
+	     * Setter for user input area's text.
+	     * @param newText New String to be contained in input TextArea.
+	     */
+	    public static void setUserInputAreaText(String newText) {
+	    	userInputArea.setText(newText);
+	    }
+	    /**
+	     * Getter for the user input TextArea.
+	     * @return User input TextArea.
+	     */
+	    public static TextArea getUserInputArea() {
+	    	return userInputArea;
+	    }
+	    /**
+	     * Getter for the ArrayList of PREDLOG buttons.
+	     * @return ArrayList of PREDLOG buttons.
+	     */
+	    public static ArrayList<Button> getPredLogButtons(){
+	    	return predLogButtons;
+	    }
+	    /**
+	     * Method for creating the logic tabs. Snippet for creating logic tabs event handler
+	     * borrowed from 
+	     * https://www.geeksforgeeks.org/javafx-tabpane-class/#:~:text=Add%20event%20handler%20to%20the,select()%20function.
+	     * @return TabPane containing the PROPLOG and PREDLOG tabs.
+	     */
+	    public static TabPane createLogicTabs() {
+	    	TabPane tabs = new TabPane();
+	    	tabs.setMinWidth(USERVIEWWIDTH);
+	    	tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
+	    	Tab propLog = new Tab("Propositional Logic");
+	    	Tab predLog = new Tab("Predicate Logic");
+	    	
+	    	// Template event handler borrowed from https://www.geeksforgeeks.org/javafx-tabpane-class/#:~:text=Add%20event%20handler%20to%20the,select()%20function.
+	    	// action event 
+	        EventHandler<Event> changeTab = GUIController.changeLogicTab(propLog, predLog);
+	        
+	        propLog.setOnSelectionChanged(changeTab);
+	        predLog.setOnSelectionChanged(changeTab);
+	        
+	        tabs.getTabs().addAll(propLog, predLog);
+	    	return tabs;
+	    }
+	    
+	    public static TabPane createProofTabs() {
+	    	TabPane proofs = new TabPane();
+	    	proofs.setMinWidth(USERVIEWWIDTH);
+	    	
+	    	return proofs;
+	    }
+	    
+	    
+	    /**
+	     * Method for creating the buttons representing the logical connectives. Method also reads
+	     * the current logic to ensure that the right visibility is set for the PREDLOG buttons.
+	     * Snippet for adding tooltips: https://stackoverflow.com/questions/37542955/how-to-set-a-tooltip-on-a-javafx-button/37543167
+	     * @return HBox containing Buttons and labels for logical connectives.
+	     */
+	    
+	    public static HBox createConnectiveShortcuts() {
+	    	HBox connectiveShortcuts = new HBox(); 
+	    	connectiveShortcuts.setSpacing(OFFSET);
+	    	Label connectives = new Label("Connectives:");
+	    	connectives.setMinWidth(5 * OFFSET);
+	        
+	        Button conjunction = new Button(CONJUNCTIONUNICODE);
+	        conjunction.setOnAction(GUIController.appendToCaretTextArea(" AND "));
+	        String conjunctionTText = "Logical conjunction\nSyntax: '#KEYWORD (someProposition AND someProposition)'";
+	        Tooltip conjunctionTooltip = new Tooltip(conjunctionTText);
+	        conjunction.setTooltip(conjunctionTooltip);
+	        
+	        Button disjunction = new Button(DISJUNCTIONUNICODE);
+	        disjunction.setOnAction(GUIController.appendToCaretTextArea(" OR "));
+	        String disjunctionTText = "Logical disjunction\nSyntax: '#KEYWORD (someProposition OR someProposition)'";
+	        Tooltip disjunctionTooltip = new Tooltip(disjunctionTText);
+	        disjunction.setTooltip(disjunctionTooltip);
+	        
+	        Button conditional = new Button(CONDITIONALUNICODE);
+	        conditional.setOnAction(GUIController.appendToCaretTextArea(" IFTHEN "));
+	        String conditionalTText = "Logical conditional\nSyntax: '#KEYWORD (someProposition IFTHEN someProposition)'";
+	        Tooltip conditionalTooltip = new Tooltip(conditionalTText);
+	        conditional.setTooltip(conditionalTooltip);
+	        
+	        Button biconditional = new Button(BICONDITIONALUNICODE);
+	        biconditional.setOnAction(GUIController.appendToCaretTextArea(" IFF "));
+	        String biconditionalTText = "Logical biconditional\nSyntax: '#KEYWORD (someProposition IFF someProposition)'";
+	        Tooltip biconditionalTooltip = new Tooltip(biconditionalTText);
+	        biconditional.setTooltip(biconditionalTooltip);
+	        
+	        Button negation = new Button(NEGATIONUNICODE);
+	        negation.setOnAction(GUIController.appendToCaretTextArea("NOT("));
+	        String negationTText = "Logical negation\nSyntax: '#KEYWORD NOT(someProposition)'";
+	        Tooltip negationTooltip = new Tooltip(negationTText);
+	        negation.setTooltip(negationTooltip);
+	        
+	        Button universal = new Button(UNIVERSALUNICODE);
+	        universal.setOnAction(GUIController.appendToCaretTextArea("FORALL("));
+	        predLogButtons.add(universal);
+	        String universalTText = "Universal quantifier\nSyntax: '#KEYWORD FORALL(someTerm[s])(someProposition)'";
+	        Tooltip universalTooltip = new Tooltip(universalTText);
+	        universal.setTooltip(universalTooltip);
+	        
+	        Button existential = new Button(EXISTENTIALUNICODE);
+	        existential.setOnAction(GUIController.appendToCaretTextArea("FORSOME("));
+	        predLogButtons.add(existential);
+	        String existentialTText = "Existential quantifier\nSyntax: '#KEYWORD FORSOME(someTerm[s])(someProposition)'";
+	        Tooltip existentialTooltip = new Tooltip(existentialTText);
+	        existential.setTooltip(existentialTooltip);
+	        
+	        Label otherSymbols = new Label("Other symbols:");
+	        
+	        Button absurd = new Button(ABSURDUNICODE);
+	        absurd.setOnAction(GUIController.appendToCaretTextArea("ABSURD"));
+	        String absurdTText = "Logical absurdity\nSyntax: Behaves like an atomic proposition\nShorthand for '(propositionA AND NOT(propositionA))'";
+	        Tooltip absurdTooltip = new Tooltip(absurdTText);
+	        absurd.setTooltip(absurdTooltip);
+	        
+	        Button identity = new Button(IDENTITYUNICODE);
+	        identity.setOnAction(GUIController.appendToCaretTextArea("="));
+	        predLogButtons.add(identity);
+	        String identityTText = "Identity\nSyntax: '#KEYWORD (SomeTerm=someTerm)'";
+	        Tooltip identityTooltip = new Tooltip(identityTText);
+	        identity.setTooltip(identityTooltip);
+	        
+	        if(thisLogic == PROPLOG) {
+	        	universal.setVisible(false);
+	        	existential.setVisible(false);
+	        	identity.setVisible(false);
+	        } else if(thisLogic == PREDLOG) {
+	        	universal.setVisible(true);
+	        	existential.setVisible(true);
+	        	identity.setVisible(true);
+	        }
+	        
+	        
+	        connectiveShortcuts.getChildren().addAll(connectives, conjunction, disjunction, conditional, biconditional, negation,
+	        		                                  universal, existential, otherSymbols, absurd, identity);
+	        connectiveShortcuts.setLayoutX(OFFSET);
+	        connectiveShortcuts.setLayoutY(OFFSET);
+	        return connectiveShortcuts;
+	    }
+	    
+	    /**
+	     * Method for setting up the overall organisation of the userView. After creating the
+	     * relevant Pane, it inserts a VBox returned by createUserViewStructure.
+	     * @return Pane containing the userView.
+	     */
+	    public static Pane createUserView() {
+	    	Pane userView = new Pane();
+	        userView.setLayoutX(TOPX);
+	        userView.setLayoutY(0.1 * SCENEHEIGHT);
+	        userView.setPrefSize(USERVIEWWIDTH, USERVIEWHEIGHT);
+	        userView.setStyle("-fx-background-color: cornsilk;");
+	       
+	        VBox userViewStructure = createUserViewStructure();
+	        
+	        userView.getChildren().add(userViewStructure);
+	        
+	        return userView;
+	    }
+	    
+	    /**
+	     * Method creating a VBox containing the high-level structure of the userView,
+	     * calling helper methods to create the relevant components.
+	     * @return VBox containing the userView.
+	     */
+	    public static VBox createUserViewStructure() {
+	    	VBox userViewStructure = new VBox();
+	    	userViewStructure.setPrefWidth(USERVIEWWIDTH - (2 * OFFSET));
+	    	userViewStructure.setPrefHeight(USERVIEWHEIGHT - (2 * OFFSET));
+	    	userViewStructure.setLayoutX(OFFSET);
+	    	userViewStructure.setLayoutY(OFFSET);
+	    	userViewStructure.setSpacing(OFFSET);
+	    	HBox keywordShortcuts = createKeywordShortcuts();
+	    	HBox connectiveShortcuts = createConnectiveShortcuts();
+	    	HBox textAreaAndButtons = createTextAreaAndButtons();
+	    	
+	    	conclusionReached.setVisible(false);
+	    	syntaxError.setVisible(false);
+	    	HBox conclusionReachedAndSyntaxError = new HBox();
+	    	Region buffer = new Region();
+	    	HBox.setHgrow(buffer, Priority.ALWAYS);
+	    
+	    	conclusionReachedAndSyntaxError.getChildren().addAll(conclusionReached, buffer, syntaxError);
+	    	
+	    	userViewStructure.getChildren().addAll(keywordShortcuts, connectiveShortcuts, textAreaAndButtons, conclusionReachedAndSyntaxError);
+	    	return userViewStructure;
+	    }
+	    
+	    /**
+	     * Method to create the keyword buttons.
+	     * @return HBox containing the keyword buttons.
+	     */
+	    public static HBox createKeywordShortcuts() {
+	    	HBox keywordShortcuts = new HBox();
+	    	keywordShortcuts.setSpacing(OFFSET);
+	    	Label keywords = new Label("Keywords:");
+	    	keywords.setMinWidth(5 * OFFSET);
+	    	Button premise = new Button("Premise");
+	    	premise.setOnAction(GUIController.appendToTextArea("\n#PREMISE "));
+	    	Button assume = new Button("Assume");
+	    	assume.setOnAction(GUIController.appendToTextArea("\n#ASSUME "));
+	    	Button derive = new Button("Derive");
+	    	derive.setOnAction(GUIController.appendToTextArea("\n#DERIVE "));
+	    	Button endAssume = new Button ("End assumption");
+	    	endAssume.setOnAction(GUIController.appendToTextArea("\n#ENDASSUME"));
+	    	Button conclude = new Button ("Conclude");
+	    	conclude.setOnAction(GUIController.appendToTextArea("\n#CONCLUDE"));
+	    	
+	    	keywordShortcuts.getChildren().addAll(keywords, premise, assume, derive, endAssume, conclude);
+	    	return keywordShortcuts;
+	    }
+	    
+	    /**
+	     * Method to create the input text area and the buttons on its righthand side.
+	     * Calls helper methods to generate these.
+	     * @return HBox containing text are and righthand buttons.
+	     */
+	    public static HBox createTextAreaAndButtons() {
+	    	HBox textAreaAndButtons = new HBox();
+	    	textAreaAndButtons.setSpacing(OFFSET);
+	    	VBox textArea = createTextArea();
+	    	VBox buttons = createButtons();
+	    	textAreaAndButtons.getChildren().addAll(textArea, buttons);
+	  
+	    	return textAreaAndButtons;
+	    }
+	    
+	    /**
+	     * Method creating a VBox for the buttons beside the text area. A region grows
+	     * to fill the space so that the buttons are aligned to the bottom of the VBox.
+	     * @return VBox containing buttons to the right of the text area.
+	     */
+	    public static VBox createButtons() {
+	    	VBox buttons = new VBox();
+	    	buttons.setSpacing(OFFSET);
+	    	Region buffer = new Region();
+	    	Button saveProof = new Button("Save proof");
+	    	saveProof.setOnMouseClicked(GUIController.saveProofCommands());
+	    	Button loadProof = new Button("Load proof");
+	    	loadProof.setOnMouseClicked(GUIController.loadProofCommands());
+	    	Button newProof = new Button("New proof");
+	    	Button printProof = new Button("Print proof");
+	    	printProof.setOnMouseClicked(GUIController.printToPDF());
+	    	Button help  = new Button("Help");
+	    	buttons.getChildren().addAll(buffer, saveProof, loadProof, printProof);
+	    	VBox.setVgrow(buffer, Priority.ALWAYS);
+	    	return buttons;
+	    }
+	    
+	    /**
+	     * Method returning a VBNox containing the text area and the 
+	     * error/conclusion reached notifications.
+	     * @return VBox containing the text are aand the error/conclusion reached 
+	     * notifications.
+	     */
+	    public static VBox createTextArea() {
+	    	
+	    	double entryHeight = 0.7 * USERVIEWHEIGHT;
+	    	
+		    userInputArea = new TextArea();
+	    	userInputArea.setFont(Font.font("Courier New", 14));
+	    	userInputArea.setMinSize(TEXTAREAWIDTHS, entryHeight);
+	    	userInputArea.setOnKeyPressed(GUIController.compileLines());
+	    	
+	    	VBox textArea = new VBox();
+	    	
+	    	textArea.setSpacing(OFFSET);
+	    	textArea.setPrefSize(TEXTAREAWIDTHS, entryHeight);
+	    	textArea.setMaxSize(TEXTAREAWIDTHS, entryHeight);
+	    	
+	    	Label proofLabel = new Label("Proof:");
+	    	textArea.getChildren().addAll(proofLabel, userInputArea);
+	    	
+	    	return textArea;
+	    }
+	    
+	    /**
+	     * Method for generating the area in which the Proof will be displayed.
+	     * @return ScrollPane in which the Proof will be drawn.
+	     */
+	    public static ScrollPane createProofView() {
+	    	ScrollPane proofView = new ScrollPane();
+		     proofView.setLayoutX(PROOFVIEWWIDTH + OFFSET);
+		     proofView.setLayoutY(OFFSET);
+		     proofView.setPrefHeight(proofViewHeight);
+		     proofView.setPrefWidth(PROOFVIEWWIDTH);
+		     proofView.setVbarPolicy(ScrollBarPolicy.ALWAYS);
+		     proofView.setHbarPolicy(ScrollBarPolicy.ALWAYS);
+		     Pane proofPane = new Pane();
+			 proofPane.setPrefSize(PROOFVIEWWIDTH, proofViewHeight);
+			 proofPane.setMaxSize(PROOFVIEWWIDTH, proofViewHeight);
+			 proofPane.setStyle("-fx-background-color: white;");
+		     proofView.setContent(proofPane);
+		     proofView.pannableProperty().set(true);
+		       
+		     return proofView;
+	    }
+	    
+	    /**
+	     * Method taking as input a Proof object and returning as output a visual representation
+	     * of that Proof in Fitch-style as a HBox.
+	     * @param proof Proof object to be drawn.
+	     * @return HBox containing visual representation of proof object.
+	     */
+	    public static HBox drawProof(Proof proof) {
+	    	
+	    	HBox proofContainer = new HBox();
+	    	proofContainer.setMinSize(PROOFVIEWWIDTH, proofViewHeight);
+	    	proofContainer.setStyle("-fx-background-color: white;");
+	    	
+	    	// This will allow rules to always display in line with one another.
+	    	Pane rulesPane = new Pane();
+	    	rulesPane.setMinSize(PROOFVIEWWIDTH/2, proofViewHeight);
+	    	rulesPane.setStyle("-fx-background-color: white;");
+	    	
+	    	//ProofPane setup admin
+	    	Pane proofPane = new Pane();
+	    	double proofPaneHeight = proofViewHeight;
+		    proofPane.setMinSize(PROOFVIEWWIDTH / 2, proofPaneHeight);
+		    
+		    proofPane.setStyle("-fx-background-color: white;");
+		    
+		    // The gap between vertical lines.
+	    	double lineVGap = 2 * OFFSET;
+	    	// The length of the main line of the proof.
+	    	double mainLineLength = OFFSET / 2;
+	    	// The X & Y coordinates of the line numbers.
+	    	double lineNoX = OFFSET;
+	    	double lineNoY = OFFSET;
+	    	// The minimum amount of space we want to allow between horizontal elements.
+	    	double minHorizontalBuffer = 4 * OFFSET;
+	    	// The horizontal gap between propositions.
+	    	double propHGap =  OFFSET + minHorizontalBuffer;
+	    	// Actual x & y coordinate of a proposition.
+	    	double propositionX = propHGap;
+	    	double propositionY = OFFSET;
+	    	// List of all lines to be added to the proof.
+	    	ArrayList<Line> linesToPrint = new ArrayList<Line>(); 
+	    	// Indexes of lines in linesToPrint which need to be updated with each line iterated through.
+	    	Deque<Integer> assumptionIndexes = new ArrayDeque<Integer>();
+	    	// The farthest left line of the proof.
+	    	double lineStart = OFFSET / 2;
+	    	Line mainLine = new Line(minHorizontalBuffer, lineStart, minHorizontalBuffer, mainLineLength);
+	    	linesToPrint.add(mainLine);
+	    	assumptionIndexes.addLast(0);
+	    	// The assumption depth of the last line in the proof.
+	    	int prevAssumptionDepth = 0;
+	    	// The deepest assumption depth in the proof.
+	    	int maxAssumptionDepth = 0;
+	    	
+	    	// Iterate through the lines of the proof.
+	    	for(int i = 0; i < proof.lines.size(); i++) {
+	    		// Store the current ProofLine and extract relevant info.
+	    		ProofLine currentLine = proof.lines.get(i);
+	    		int currentLineNum = currentLine.getLineNum();
+	    		String currentRule = currentLine.getRule();
+	    		String currentKeyword = currentLine.getKeyword();
+	    		// Checking if this is the last line of the proof, and updating
+	    		// next keyword if not.
+	    		String nextKeyword = "END";
+	    		if(i < (proof.lines.size() -1)) {
+	    			nextKeyword = proof.lines.get(i+1).getKeyword();
+	    		}
+	    		int currentAssumptionDepth = currentLine.getAssumptionDepth();
+	    		
+	    		// Create the line number label.
+	    		Label lineNumLabel = new Label(Integer.toString(currentLineNum));
+	    		lineNumLabel.setFont(Font.font ("Cambria Math", proofFontSize));
+	    		lineNumLabel.setLayoutX(lineNoX);
+	    		lineNumLabel.setLayoutY(lineNoY);
+	    		
+	    		// Create the rule label
+	    		Label ruleLabel = new Label(currentRule);
+	    		ruleLabel.setFont(Font.font ("Cambria Math", proofFontSize));
+	    		ruleLabel.setLayoutX(minHorizontalBuffer);
+	    		ruleLabel.setLayoutY(lineNoY);
+	    		rulesPane.getChildren().add(ruleLabel);
+	    		
+	    		// Updating end point of the main line.
+	    		lineNoY += lineVGap;
+	    		mainLineLength += lineVGap;
+	    		mainLine.setEndY(mainLineLength);
+	    		
+	    		// Creating the label for the Proposition & putting it at the right depth.
+	    		Label proposition = new Label(currentLine.getProp().toString());
+	    		proposition.setFont(Font.font("Cambria Math", proofFontSize));
+	    		propositionX = OFFSET + (minHorizontalBuffer * (1 + currentAssumptionDepth));
+	    		proposition.setLayoutX(propositionX);
+	    		proposition.setLayoutY(propositionY);
+	    		propositionY += lineVGap;
+	    		
+	    		// Adding the labels.
+	    		proofPane.getChildren().addAll(lineNumLabel, proposition);
+	    		
+	    		/*
+	    		 * Updating the lines used to manage assumptions:
+	    		 * STEP 1: Get current assumption depth of line.
+	    		 * STEP 2: Compare it with previously saved assumption depth
+	    		 * STEP 3: If the keyword does not equals assumption & assumptionDepth == prevAssumptionDepth
+	    		 *              Increment all the lines in the array.
+	    		 * STEP 3: If the keyword does not equal assume & assumptionDepth != prevAssumptionDepth
+	    		 *              Pop so there are only assumptionDepth number left in the stack
+	    		 * STEP 4: Keyword does equal assume, assumptionDepth > prev assumptionDepth
+	    		 *              Increment all and add this line to the arraylist & stack.
+	    		 * STEP 4: Keyword does equal assume, assumption depth <= prev assumption depth
+	    		 *              pop so there are assumptiondepth -1 left on stack
+	    		 *              add this line to arraylist and stack
+	    		 */
+	    		int thisAssumptionDepth = currentLine.getAssumptionDepth();
+	    		
+	    		if(currentKeyword.equals("#ASSUME")) {
+	    			
+	    			Line assumeLine = new Line();
+	    			double assumptionLineX = minHorizontalBuffer * (1 + thisAssumptionDepth);
+	    			
+	    			assumeLine.setStartX(assumptionLineX);
+	    			assumeLine.setStartY(mainLineLength - (0.8 * lineVGap));
+	    			assumeLine.setEndX(assumptionLineX);
+	    			
+	    			if(currentAssumptionDepth > prevAssumptionDepth) {
+	    				// Add this line to line arraY
+		    			// Push its index to the index array && add it to line array
+		    			linesToPrint.add(assumeLine);
+		    			assumptionIndexes.addLast(linesToPrint.size() - 1);
+		    			// System.out.println("LINESTOPRINTSIZE: " + linesToPrint.size());
+	    				// Update all line end points
+		    			Iterator<Integer> stackIterator = assumptionIndexes.descendingIterator();
+		    			while(stackIterator.hasNext()) {
+		    				int index = stackIterator.next();
+		    				linesToPrint.get(index).setEndX(linesToPrint.get(index).getStartX());
+		    				linesToPrint.get(index).setEndY(mainLineLength);
+		    			}
+	    			} else {
+	    				// Pop so there are only assumptionDepth number of elements in the stack
+	    				while(assumptionIndexes.size() >= currentAssumptionDepth+1) {
+	    					assumptionIndexes.removeLast();
+	    				}
+	    				// Update all line end points in the stack
+	    				// Add this line to line arraY
+		    			assumeLine.setStartX(assumptionLineX);
+		    			assumeLine.setStartY(mainLineLength - (0.8 * lineVGap));
+		    			// Push its index to the index array && add it to line array
+		    			linesToPrint.add(assumeLine);
+		    			assumptionIndexes.addLast(linesToPrint.size() - 1);
+		    			// System.out.println("LINESTOPRINTSIZE: " + linesToPrint.size());
+	    				// Update all line end points
+		    			Iterator<Integer> stackIterator = assumptionIndexes.descendingIterator();
+		    			while(stackIterator.hasNext()) {
+		    				int index = stackIterator.next();
+		    				linesToPrint.get(index).setEndX(linesToPrint.get(index).getStartX());
+		    				linesToPrint.get(index).setEndY(mainLineLength);
+		    			}
+	    			}
+	    			// Drawing the underline
+	    			Line assumeUnderline = new Line();
+	    			assumeUnderline.setStartX(assumptionLineX);
+	    			assumeUnderline.setStartY(mainLineLength);
+	    			double assumeUnderlineX = assumptionLineX + (4 * OFFSET);
+	    			double underlineAssumeWidth = assumptionLineX + (proposition.getWidth());
+	    			//System.out.println("PROP WIDTH: " + proposition.getPrefWidth());
+	    			if(assumeUnderlineX < underlineAssumeWidth) {
+	    				assumeUnderlineX = underlineAssumeWidth;
+	    			}
+	    			assumeUnderline.setEndX(assumeUnderlineX);
+	    			assumeUnderline.setEndY(mainLineLength);
+	    			proofPane.getChildren().add(assumeUnderline);
+	    			
+	    			if(thisAssumptionDepth > maxAssumptionDepth) {
+	    				maxAssumptionDepth = thisAssumptionDepth;
+	    			}
+	    			
+	    		} else {
+	    			
+	    			if(currentAssumptionDepth == prevAssumptionDepth) {
+	    				// Increment all line end points in the list
+	    				Iterator<Integer> stackIterator = assumptionIndexes.descendingIterator();
+		    			while(stackIterator.hasNext()) {
+		    				int index = stackIterator.next();
+		    				//System.out.println("INDEX IS : " + index);
+		    				linesToPrint.get(index).setEndY(mainLineLength);
+		    			}
+	    			} else {
+	    				// Pop so there are only assumptionDepth number of elements left in the stack
+	    				while(assumptionIndexes.size() > currentAssumptionDepth+1) {
+	    					assumptionIndexes.removeLast();
+	    				}
+	    				// Update all line end points in the stack
+	    				Iterator<Integer> stackIterator = assumptionIndexes.descendingIterator();
+		    			while(stackIterator.hasNext()) {
+		    				int index = stackIterator.next();
+		    				linesToPrint.get(index).setEndX(linesToPrint.get(index).getStartX());
+		    				linesToPrint.get(index).setEndY(mainLineLength);
+		    			}
+	    			}
+	    		}
+	    		
+	    		
+	    		// CREATING THE UNDERLINE FOR PREMISE 
+	    		if(currentKeyword.equals("#PREMISE") && !nextKeyword.equals("#PREMISE")){
+	    			Line premiseUnderline = new Line();
+	    			premiseUnderline.setStartX(minHorizontalBuffer);
+	    			premiseUnderline.setStartY(mainLineLength);
+	    			double premiseUnderlineX = minHorizontalBuffer + (4 * OFFSET);
+	    			double underlinePremiseWidth = minHorizontalBuffer + (proposition.getWidth());
+	    			if(minHorizontalBuffer < underlinePremiseWidth) {
+	    				premiseUnderlineX = underlinePremiseWidth;
+	    			}
+	    			premiseUnderline.setEndX(premiseUnderlineX);
+	    			premiseUnderline.setEndY(mainLineLength);
+	    			proofPane.getChildren().add(premiseUnderline);
+	    			
+	    			if(thisAssumptionDepth > maxAssumptionDepth) {
+	    				maxAssumptionDepth = thisAssumptionDepth;
+	    			}
+				}
+	    		
+	    		if(mainLineLength >= proofViewHeight - OFFSET) {
+	    			proofPaneHeight += lineVGap;
+	    			proofPane.setPrefHeight(proofPaneHeight);
+	    		}
+	    		
+	    		prevAssumptionDepth = currentAssumptionDepth;
+	    	}
+	    	
+	    	// Adding all lines to be printed to the proofPane.
+	    	for(Line currentLine : linesToPrint) {
+	    		proofPane.getChildren().add(currentLine);
+	    	}
+	    	// Adding proofPane and rulesPane to proofContainer
+	    	proofContainer.getChildren().addAll(proofPane, rulesPane);
+	    	
+	    	// Checking if the conclisionReached notification should be displayed.
+	    	if(proof.conclusionReached()) {
+	    		conclusionReached.setVisible(true);
+	    	} else {
+	    		conclusionReached.setVisible(false);
+	    	}
+	    	
+	    	return proofContainer;
+	    }
+	    
+	    /**
+	     * Entry point into the program.
+	     * @param args
+	     */
+	    public static void main(String[] args) {
+	        launch(args);
+	    }
+	}
+

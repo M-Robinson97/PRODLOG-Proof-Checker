@@ -1,0 +1,169 @@
+/**
+ * Class for generating Term objects.
+ * @author M. Robinson
+ *
+ */
+public class Term {
+	
+	/**
+	 * Field variable storing the term
+	 */
+	private String term;
+	/**
+	 * Field variable storing the term type
+	 */
+	private String type;
+	/**
+	 * Field variable storing the key
+	 */
+	private String key;
+	
+	
+	/**
+	 * Constructor for generating Term objects. System will infer whether
+	 * its type is variable or constant.
+	 * @param term
+	 */
+	public Term(String term) {
+		
+		if(term.substring(0, 1).matches("[a-r]")) {
+			this.type = "CONSTANT";
+		} else if(term.substring(0, 1).matches("[s-z]")) {
+			this.type = "VARIABLE";
+		} else {
+			throw new IllegalArgumentException("Error! A term must be a lowercase alphabetical letter!");
+		}
+		this.term = term;
+		this.key = this.generateKey();
+	}
+	
+	/**
+	 * Method for generating unique key of the term.
+	 * @return Unique key representing the term.
+	 */
+	public String generateKey() {
+		return "(" + term + ")";
+	}
+	/**
+	 * Getter for the term.
+	 * @return String representation of the Term
+	 */
+	public String getTerm() {
+		return term;
+	}
+	/**
+	 * Setter for the term
+	 * @param term New String representation of the Term
+	 */
+	public void setTerm(String term) {
+		this.term = term;
+	}
+	/**
+	 * Getter for the type
+	 * @return String representation of the type.
+	 */
+	public String getType() {
+		return type;
+	}
+	/**
+	 * Setter for the type
+	 * @param type New type
+	 */
+	public void setType(String type) {
+		this.type = type;
+	}
+	/**
+	 * Getter for the key
+	 * @return key The key
+	 */
+	public String getKey() {
+		return this.key;
+	}
+	/**
+	 * Setter for the key
+	 * @param key Replacement key
+	 */
+	public void setKey(String key) {
+		this.key = key;
+	}
+	
+	/**
+	 * Equals method compares this key against the key of another term.
+	 * If the other key has an index attached to the end of it, the method
+	 * crops that index off before making the comparison. It is important for
+	 * the proof method that a Term can be compared based on its key alone, 
+	 * which is why there is a separate method to compare terms accepting a 
+	 * Term object as a parameter.
+	 * @param otherKey String key of the term being compared against.
+	 * @return True if the keys match, false otherwise.
+	 */
+	public boolean equals(String otherKey) {
+		String thisKey = this.generateKey();
+		String otherKeyCropped = otherKey;
+		if(otherKey.charAt(otherKey.length()-1) != ')') {
+			StringBuilder otherKeyCroppedBuilder = new StringBuilder();
+			boolean continueCropping = true;
+			int i = 0;
+			while(continueCropping) {
+				char currentChar = otherKey.charAt(i);
+				if(currentChar == ')') {
+					continueCropping = false;
+				}
+				otherKeyCroppedBuilder.append(currentChar);
+			}
+			otherKeyCropped = otherKeyCroppedBuilder.toString();
+		}
+		System.out.println("this key " + thisKey + " Other key " + otherKey);
+		if(thisKey.equals(otherKeyCropped)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
+	/**
+	 * Method for comparing this Term against another receiving a Term object
+	 * as a parameter.
+	 * @param otherTerm Term to be compared against this Term.
+	 * @return True if their generateKey method produces the same result, false otherwise.
+	 */
+	public boolean equals(Term otherTerm) {
+		return this.generateKey().equals(otherTerm.generateKey());
+	}
+	
+	/**
+	 * Method allowing us to perform a deep clone of the Term.
+	 * @return Copy of the term with a different reference in menu.
+	 */
+	public Term deepClone() {
+		String newTerm = term;
+		return new Term(newTerm);
+	}
+	
+	/**
+	 * Method to generate hashCode for the term String.
+	 * @return term's hashcode.
+	 */
+	public int hashCode() {
+	      return term.hashCode();
+	  }
+	
+	/**
+	 * toString() method for producing human-readable representation of Term objects.
+	 */
+	public String toString() {
+		return "Type: " + this.type + " Term: " + this.term;
+	}
+	
+	/**
+	 * Main method to test Term and deepClone.
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		Term a = new Term("a");
+		Term aBackup = a.deepClone();
+		a.setTerm("b");
+		System.out.println("A: " + a.getTerm() + " aBackup: " + aBackup.getTerm());
+	}
+
+}

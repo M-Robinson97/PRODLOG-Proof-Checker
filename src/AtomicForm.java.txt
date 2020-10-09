@@ -1,0 +1,262 @@
+/**
+ * Class for creating AtomicForm objects, i.e. atomic formulae. Class has
+ * three constructors for creating atomic formulae which are either 
+ * predicate-term combinations, identity statements, or absurdity.
+ * With more time, the source code for the whole system would have been
+ * modified so that this class could replace AtomicProp.
+ * @author M. Robinson
+ *
+ */
+public class AtomicForm extends Proposition {
+	/**
+	 * Field variable representing the type of the AtomicForm as either
+	 * a predicate-term combo (1), identity statement (2) or atomic
+	 * proposition (i.e. absurdidty) (3).
+	 */
+	protected int typeCode;
+	/**
+	 * String for storing the predicate of a predicate-term combo.
+	 */
+	protected String pred;
+	/**
+	 * Array for storing the Term objects for predicate-term combo
+	 * or identity statement.
+	 */
+	protected Term[] terms;
+	/**
+	 * String for storing absurdity.
+	 */
+	protected String prop;
+	
+	/**
+	 * Constructor for creating predicate-term combinations.
+	 * @param predicate String representing the predicate.
+	 * @param terms Array of term objects in the scope of that predicate.
+	 */
+	public AtomicForm(String predicate, Term[] terms) {
+		this.type = "PREDICATE";
+		this.typeCode = 1;
+		this.pred = predicate;
+		this.terms = new Term[terms.length];
+		this.terms = terms;
+		this.unicode = null;
+		this.prop = this.toString();
+		this.key = generateKey();
+	}
+	/**
+	 * Constructor for creating identity statements.
+	 * @param equality Honus is on the caller to ensure that this
+	 *                 is "=".
+	 * @param term1 Lefthand side of the identity statement.
+	 * @param term2 Righthand side of the identity statement.
+	 */
+	public AtomicForm(String equality, Term term1, Term term2) {
+		this.type = "IDENTITY";
+		this.typeCode = 2;
+		this.pred = null;
+		this.terms = new Term[2];
+		terms[0] = term1;
+		terms[1] = term2;
+		this.unicode = "\u003D";
+		this.prop = this.toString();
+		this.key = generateKey();
+	}
+	/**
+	 * Constructor for creating atomic propositions.
+	 * @param absurd String containing absurdity
+	 * Note that this method could easily allow AtomicForm to replace
+	 * AtomicProp.
+	 */
+	public AtomicForm(String absurd) {
+		this.type = "ATOMIC";
+		this.typeCode = 3;
+		this.pred = null;
+		this.terms = null;
+		this.unicode = "\u22A5";
+		// Slight deviation here; prop is not just toString(), it is "ABSURD"
+		this.prop = "ABSURD";
+		this.key = generateKey();
+	}
+
+	/**
+	 * Method to generate the unique key of the atomic formula. The key generated
+	 * will depend on the type of input.
+	 * @return String containing the unique key of the atomic formula
+	 */
+	public String generateKey() {
+		
+		StringBuilder returnString = new StringBuilder();
+		if(this.typeCode == 1) {
+			returnString.append("((");
+			returnString.append(pred);
+			returnString.append(")");
+			for(int i = 0; i < terms.length; i++) {
+				returnString.append(terms[i].getKey());
+			}
+			returnString.append(")");
+		} else if(this.typeCode == 2) {
+			returnString.append("(");
+			returnString.append(terms[0].getKey());
+			returnString.append("=");
+			returnString.append(terms[1].generateKey());
+			returnString.append(")");
+		} else if(this.typeCode == 3) {
+			returnString.append("(");
+			returnString.append(prop);
+			returnString.append(")");
+		}
+		return returnString.toString();
+	}
+	/**
+	 * Getter for the typeCode.
+	 * @return Integer typeCode (1 for predicate-term, 2 for identity, 3 for atomic)
+	 */
+	public int getTypeCode() {
+		return typeCode;
+	}
+	/**
+	 * Setter for the typeCode.
+	 * @param typeCode new typeCode (1 for predicate-term, 2 for identity, 3 for atomic)
+	 */
+	public void setTypeCode(int typeCode) {
+		if(typeCode != 1 && typeCode != 2 && typeCode !=3) {
+			throw new IllegalArgumentException("typeCode must be set to 1, 2 or 3");
+		}
+		this.typeCode = typeCode;
+	}
+	/**
+	 * Getter for the predicate.
+	 * @return String containing the predicate, or null if none is stored.
+	 */
+	public String getPred() {
+		return pred;
+	}
+	/**
+	 * Setter for the predicate.
+	 * @param pred New predicate.
+	 */
+	public void setPred(String pred) {
+		this.pred = pred;
+	}
+	/**
+	 * Getter for the array of Terms.
+	 * @return Array of Terms, or null if none is stored.
+	 */
+	public Term[] getTerms() {
+		return terms;
+	}
+	/**
+	 * Setter for the terms.
+	 * @param terms New array of terms.
+	 */
+	public void setTerms(Term[] terms) {
+		this.terms = terms;
+	}
+	/**
+	 * Getter for the proposition.
+	 * @return String representation of proposition.
+	 */
+	public String getProp() {
+		return prop;
+	}
+	/**
+	 * Setter for the proposition.
+	 * @param prop New String representation of proposition to be stored.
+	 */
+	public void setProp(String prop) {
+		this.prop = prop;
+	}
+	/**
+	 * Method allowing the user to replace the term at a given index of the Term
+	 * array with a new Term.
+	 * @param index Index of the Term to be replaced.
+	 * @param term Term to replace the Term stored at that index.
+	 */
+	public void replaceTerm(int index, Term term) {
+		this.terms[index] = term;
+	}
+	
+	/**
+	 * Overriding deepClone method of superclass. Returns a deepClone of this Proposition
+	 * by creating a new String (and new Term[] if necessary) and using this to create
+	 * a copy of the Proposition with a different reference in memory (via the immutability
+	 * of String in Java)
+	 */
+	@Override
+	public Proposition deepClone() {
+		if(this.type.equals("ATOMIC")) {
+			String newProp = prop;
+			return new AtomicForm(newProp);
+		}
+		Term[] cloneTerms = new Term[terms.length];
+		for(int i = 0; i < terms.length; i++) {
+			cloneTerms[i] = terms[i].deepClone();
+		}
+		if(this.type.equals("IDENTITY")) {
+			return new AtomicForm("IDENTITY", cloneTerms[0], cloneTerms[1]);
+		} else if(this.type.equals("PREDICATE")) {
+			String predClone = pred;
+			return new AtomicForm(predClone, cloneTerms);
+		} else {
+			throw new IllegalArgumentException("Error in cloning.");
+		}
+	}
+
+	/**
+	 * toString() method for printing out AtomicForm objects.
+	 */
+	public String toString() {
+		
+		StringBuilder returnString = new StringBuilder();
+		
+		if(typeCode == 1) {
+			returnString.append(pred);
+			for(int i = 0; i < terms.length;i++) {
+				returnString.append(terms[i].getTerm());
+			}
+		} else if(typeCode == 2) {
+			returnString.append(terms[0].getTerm() + "=" + terms[1].getTerm());
+		} else if(typeCode == 3) {
+			returnString.append("(" + unicode + ")");
+		}
+		
+		return returnString.toString();
+	}
+	
+	/**
+	 * Main method for testing AtomicForm on the command line. 
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		Term var1 = new Term("x");
+		Term var2 = new Term("y");
+		Term var3 = new Term("z");
+		Term[] varArray123 = {var1, var2, var3};
+		Term con1 = new Term("a");
+		Term con2 = new Term("b");
+		Term con3 = new Term("c");
+		Term[] consArray13 = {con1, con3};
+		Term[] consArray2 = {con2};
+		
+		AtomicForm predTest1 = new AtomicForm("F", varArray123);
+		AtomicForm predTest2 = new AtomicForm("A", consArray13);
+		AtomicForm predTest3 = new AtomicForm("P", consArray2);
+		AtomicForm identityTest13 = new AtomicForm("=", con1, con3);
+		AtomicForm identityTest32 = new AtomicForm("=", con3, con2);
+		AtomicForm absurdTest = new AtomicForm("ABSURD");
+		
+		// Testing creation of predicate-term combo. Expected: Fxyz 
+		System.out.println(predTest1.toString());
+		// Testing creation of predicate-term combo. Expected: Aac 
+		System.out.println(predTest2.toString());
+		// Testing creation of predicate-term combo. Expected: Pb
+		System.out.println(predTest3.toString());
+		// Testing creation of identity statement. Expected: a=c 
+		System.out.println(identityTest13.toString());
+		// Testing creation of identity statement. Expected: c = b
+		System.out.println(identityTest32.toString());
+		// Testing creation of absurd atom. Expected: (absurd unicode)
+		System.out.println(absurdTest.toString());
+		
+	}
+}

@@ -1,0 +1,891 @@
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+public class Interpreter {
+
+	//PROPLOG AND PREDLOG
+	static String keyword = "KEYWORD";
+	static String openBracket = "OPENBRACKET";
+	static String closeBracket = "CLOSEBRACKET";
+	static String unaryConnective = "UNARYCONNECTIVE";
+	static String binaryConnective = "BINARYCONNECTIVE";
+	static String atom = "ATOM";
+	static String absurd = "ABSURD";
+	//JUST PREDLOG:
+	static String quantifier = "QUANTIFIER";
+	static String predicate = "PREDICATE";
+	static String identity = "IDENTITY";
+	static String term = "TERM";
+	static String constant = "CONSTANT";
+	static String variable = "VARIABLE";
+	
+	static final String EMPTY = "empty";
+	static final int PROPLOG = 0;
+	static final int PREDLOG = 1;
+	static int thisLogic;
+	static boolean inComment = false;
+	
+	static String userInput;
+	
+	/**
+	 * Lex method takes as input a String and returns an array of Token objects. 
+	 * Method works by iterating through all characters of a Token. The main purpose
+	 * of lex is to separate out the input String into lexems. The lexHelper method
+	 * is called to analyse these for correctness. First of all, 
+	 * we check if we're in a comment. If we are, then we just ignored the input
+	 * until the end of the comment. If we're not, then we keep appending each
+	 * character to a StringBuilder until a breakpoint is reached (either a space,
+	 * open bracket or close bracket), at which point the helper is called on the 
+	 * StringBuilder.
+	 * @param sentence Input sentence of PRODLOG
+	 * @return ArrayList<Token> containing all Token objects lexed from the input.
+	 */
+	public static ArrayList<Token> lex(String sentence) {
+		
+		userInput = sentence;
+		
+		//Used to index the token object. Is incremented with the creation of a new token.
+		int tokenIndex = 0;
+		
+		StringBuilder thisString = new StringBuilder();
+		
+		ArrayList<Token> tokens = new ArrayList<Token>();
+		
+		
+		for(int i = 0; i < sentence.length(); i++) {
+			
+			char exp = sentence.charAt(i);
+			
+			/*
+			 * Initial switch block deals with comments.
+			 */
+			switch (exp) {
+			case '/':
+				
+				if(i + 1 < sentence.length()){
+					if(sentence.charAt(i+1) == '*') {
+						inComment = true;
+						//System.out.println("In comment: " + inComment);
+						i++;
+					} else if(sentence.charAt(i+1) == '/') {
+						inComment = false;
+						return tokens;
+					} else {
+						throw new IllegalArgumentException("Syntax error on '/" + sentence.charAt(i+1) + "'");
+					}
+				} else {
+					throw new IllegalArgumentException("Syntax error on '/'!");
+				}
+				continue;
+			
+			case '*':
+			
+				if((i + 1 < sentence.length()) && (sentence.charAt(i+1) == '/')) {
+					inComment = false;
+					i++;
+				} else {
+					throw new IllegalArgumentException("Syntax error on '*'!");
+				}
+			
+				continue;
+			}
+			if(inComment) {
+				continue;
+			}
+			
+			/*
+			 * Other switch block deals with everything else.
+			 */
+			switch (exp) {
+			case '(':
+				if(thisString.length() > 0){
+					tokenIndex = lexHelper(thisString, tokens, tokenIndex);
+					thisString = new StringBuilder();
+				}
+				tokens.add(new Token(openBracket, "(", tokenIndex));
+				tokenIndex++;
+				break;
+				
+			case ')':
+				if(thisString.length() > 0){
+					tokenIndex = lexHelper(thisString, tokens, tokenIndex);
+					thisString = new StringBuilder();
+				}
+				tokens.add(new Token(closeBracket, ")", tokenIndex));
+				tokenIndex++;
+				break;
+				
+			case ' ':
+				if(thisString.length() > 0){
+					tokenIndex = lexHelper(thisString, tokens, tokenIndex);
+					thisString = new StringBuilder();
+				}
+				break;
+				
+			default:
+				thisString.append(exp);
+			}
+			
+			if(i == sentence.length()-1) {
+				if(thisString.length() > 0){
+					tokenIndex = lexHelper(thisString, tokens, tokenIndex);
+					thisString = new StringBuilder();
+				}
+			}
+			
+		}
+		
+		return tokens;
+	}
+	
+	/**
+	 * lexHelper method takes a StringBuilder as input, the list of tokens, and the current
+	 * token index. It identifies the type of the token. If the token is correct (i.e. part
+	 * of the vocabulary of the language) then the index is incremented and returned. 
+     * Otherwise, an exception is thrown. 
+	 * @param thisString Prospective lexeme.
+	 * @param tokens ArrayList of all Token objects so far created from use input.
+	 * @param tokenIndex Index to be stored in this Token (if it is correct)
+	 * @return Index of the next token to be added to the list (if there is one), or an exception
+	 *         is thrown if the lexeme is invalid. 
+	 */
+	public static int lexHelper(StringBuilder thisString, ArrayList<Token> tokens, int tokenIndex) {
+		
+		String thisToken = thisString.toString();
+		// We first check it matches a specific token type. If it doesn't,
+		// we're going to go through the term & see what it's made from.
+		
+		String thisTokenType = tokenType(thisToken);
+		//System.out.println("token type: " + thisTokenType);
+		if(!thisTokenType.equals(EMPTY)) {
+			tokens.add(new Token(thisTokenType, thisToken, tokenIndex));
+			tokenIndex++;
+		} else if(thisLogic == PREDLOG) {
+			//System.out.println(thisToken);
+			String[][] lexemeType = analyzeLexeme(thisToken);
+			if(lexemeType[0][0].equals(EMPTY)) {
+				throw new IllegalArgumentException("Syntax error! " + thisToken + " is not a word of the language!");
+			} else {
+				for(int j = 0; j < lexemeType.length; j++) {
+					thisTokenType = lexemeType[j][0];
+					thisToken = lexemeType[j][1];
+					tokens.add(new Token(thisTokenType, thisToken, tokenIndex));
+					tokenIndex++;
+				}
+			}
+		}
+		return tokenIndex;
+	}
+	
+	/**
+	 * Method to set the logic of the Interpreter.
+	 * @param i Integer representing the logic to which the Interpreter should
+	 *          be set (0 for PROPLOG, 1 for PREDLOG).
+	 */
+	public static void setLogic(int i ) {
+		if(i == PROPLOG) {
+			thisLogic = PROPLOG;
+		} else if(i == PREDLOG) {
+			thisLogic = PREDLOG;
+		} else {
+			throw new IllegalArgumentException("Parameter must be either 0 (PROPLOG) or 1 (PREDLOG)");
+		}
+	}
+	
+	/**
+	 * Method to determine the type of a lexeme.
+	 * @param lexeme Lexeme whose type is to be identified. 
+	 * @return
+	 */
+	public static String tokenType(String lexeme) {
+		// COMMON TO PROPLOG & PREDLOG:
+		if (lexeme.charAt(0) == '#' && isKeyword(lexeme)) {
+			return keyword;
+		} else if(isBinaryConnective(lexeme)) {
+			return binaryConnective;	
+		} else if(isUnaryConnective(lexeme)) {
+			return unaryConnective;	
+		} else if(isAbsurd(lexeme)) {
+			return atom;
+		}
+		
+	if(thisLogic == PROPLOG) {
+		if(isPropLogAtom(lexeme)) {
+			return atom;
+		}
+	}
+	if(thisLogic == PREDLOG) {
+		if(isQuantifier(lexeme)) {
+			return quantifier;
+		//} else if(isPredicate(lexeme)){
+		//	return predicate;
+		} else {
+			return EMPTY;
+		}
+	}
+		throw new IllegalArgumentException("Syntax error! " + lexeme + " is not a word of the language!");
+	}
+	
+	/**
+	 * Iterate through lexeme, try to identify its type. If type is found, create
+	 * new array with type and substring, and add this to the list of arraus to return.
+	 * If type is not found, return {{EMPTY, EMPTY}}.
+	 * @param lexeme Input lexeme which could not be identified by lexHelper.
+	 * @return
+	 */
+	public static String[][] analyzeLexeme(String lexeme) {
+		
+		String[][] emptyArray = {{EMPTY, EMPTY}};
+		
+		ArrayList<String[]> returnArray = new ArrayList<String[]>();
+		
+		
+		int returnIndex = 0;
+		
+		for(int i = 0; i < lexeme.length(); i++) {
+			
+			String currentSubstring = lexeme.substring(i, i+1);
+			
+			// Check for predicate
+			if(isPredicate(currentSubstring)) {
+				String[] predicateLexeme = {predicate, currentSubstring};
+				returnArray.add(returnIndex, predicateLexeme);
+				returnIndex++;
+				continue;
+			// Check for identity
+			} else if(isIdentity(currentSubstring)) {
+				String[] identityLexeme = {identity, currentSubstring};
+				returnArray.add(returnIndex, identityLexeme);
+				returnIndex++;
+				continue;
+			// Check for term
+			} else if (isTerm(currentSubstring)) {
+				String[] termLexeme = {term, currentSubstring};
+				returnArray.add(returnIndex, termLexeme);
+				returnIndex++;
+				continue;
+			// Check for subscript on predicates or terms. We first need to
+			// establish that the preceding token is a type for which subscripting
+			// is permitted. If it is, we just append the number. If not, then 
+			// we return empty.
+			} else if(charIsNumber(lexeme.charAt(i))) {
+				if(lexeme.length() < 2) {
+					//System.out.println("FAILURE1");
+					return emptyArray;
+				}
+				String[] prevArray = returnArray.get(returnIndex-1);
+				String prevType = prevArray[0];
+				if(prevType.equals(predicate) || prevType.equals(term)) {
+					prevArray[1] = prevArray[1] + currentSubstring;
+					returnArray.set(returnIndex-1, prevArray);
+				} else {
+					//System.out.println("FAILURE2");
+					return emptyArray;
+				}
+			} else {
+				//System.out.println("FAILURE3");
+				return emptyArray;
+			}
+		}
+		String[][] returnAsArray = new String[returnArray.size()][2];
+		return returnArray.toArray(returnAsArray);
+	}
+	
+	/**
+	 * Method to determine if a given lexeme is a predicate.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if a predicate, false otherwise.
+	 */
+	public static boolean isPredicate(String lexeme) {
+		if(lexeme.matches("[A-Z]") && lexeme.length() == 1) {
+			return true;
+		} else {
+			
+			return false;
+		}
+	}
+	/**
+	 * Method to determine if a given lexeme is a term.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if a term, false otherwise.
+	 */
+	public static boolean isTerm(String lexeme) {
+		if(lexeme.matches("[a-z]") && lexeme.length() ==1) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	/**
+	 * Method to determine if a given lexeme is identity.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if identity, false otherwise.
+	 */
+	public static boolean isIdentity(String lexeme) {
+		if(lexeme.equals("=")) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
+	/**
+	 * Method for determining if a particular lexeme is an atom of propositional
+	 * logic. We first check if it is absurdity. Next, we check if the first
+	 * element is a letter. If not, we return false, as it cannot be an atom.
+	 * If it is, we check if there are more characters in the lexeme. If there
+	 * are then we check that the rest of those chars are ints (for indexing
+	 * purposes). If so, we return true. Otherwise, we return false.
+	 * 
+	 * @param lexeme
+	 * @return
+	 */
+	public static boolean isPropLogAtom(String lexeme) {
+		
+		String first = lexeme.substring(0,1);
+		if(first.matches("[a-zA-Z]")) {
+			if(lexeme.length() == 1) {
+				return true;
+			} else {
+				for(int i = 1; i < lexeme.length(); i++) {
+					if(charIsNumber(lexeme.charAt(i))) {
+						continue;
+					} else {
+						return false;
+					}
+				}
+				return true;
+			}
+		} else {
+			return false;
+		}
+	}
+	
+	/**
+	 * Method to determine if a given lexeme is absurdity.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if absurdity, false otherwise.
+	 */
+	public static boolean isAbsurd(String lexeme) {
+		if(lexeme.equals(absurd)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
+	/**
+	 * Method to determine if a given character is a number.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if is a number, false otherwise.
+	 */
+	public static boolean charIsNumber(char x) {
+		switch(x) {
+		case '1':
+			return true;
+		case '2':
+			return true;
+		case '3':
+			return true;
+		case '4':
+			return true;
+		case '5':
+			return true;
+		case '6':
+			return true;
+		case '7': 
+			return true;
+		case '8': 
+			return true;
+		case '9':
+			return true;
+		case '0':
+			return true;
+		default:
+			return false;
+		}
+	}
+	/**
+	 * Method to determine if a given lexeme is a keyword.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if a keyword, false otherwise.
+	 */
+	public static boolean isKeyword(String lexeme) {
+		 
+		switch (lexeme) {
+		
+		case ("#PREMISE"): 
+			return true;
+		case "#CONCLUDE":
+			return true;
+		case "#DERIVE":
+			return true;
+		case "#ASSUME":
+			return true;
+		case "#ENDASSUME":
+			return true;
+		default:
+			return false;
+		}
+	}
+	/**
+	 * Method to determine if a given lexeme is a bunary connective.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if binary connective, false otherwise.
+	 */
+	public static boolean isBinaryConnective(String lexeme) {
+		 
+		switch (lexeme) {
+		
+		case "AND": 
+			return true;
+		case "OR":
+			return true;
+		case "IFTHEN":
+			return true;
+		case "IFF":
+			return true;
+		default:
+			return false;
+		}
+	}
+	/**
+	 * Method to determine if a given lexeme is a unary connective.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if unary connective, false otherwise.
+	 */
+	public static boolean isUnaryConnective(String lexeme) {
+		 
+		switch (lexeme) {
+		
+		case "NOT": 
+			return true;
+		default:
+			return false;
+		}
+	}
+	/**
+	 * Method to determine if a given lexeme is a quantifier.
+	 * @param lexeme Lexeme to be checked.
+	 * @return True if a quantifier, false otherwise.
+	 */
+	public static boolean isQuantifier(String lexeme) {
+		 
+		switch (lexeme) {
+		
+		case "FORALL": 
+			return true;
+		case "FORSOME":
+			return true;
+		default:
+			return false;
+		}
+	}
+	
+	// RULE FOR QUANTIFIERS: EVERY VARIABLE FOLLOWING A QUANTIFIER MUST
+	// ALSO BE CONTAINED IN THE FOLLOWING PROPOSITION, EXCEPT IN OTHER
+	// QUANTIFIERS.
+	/**
+	 * Parser creates an AST with the keyword as the root (or throws an exception)
+	 * and for its left subtree, passes the array of terms to the parserHelper.
+	 * @param tokens List of Token objects produced by lexer.
+	 * @return Compelte Abstract Syntax Tree.
+	 */
+	public static AbstractSyntaxTree parse(ArrayList<Token> tokens) {
+		////System.out.println(tokens[0].getLexeme());
+		/*
+		 * First, the parser checks that the initial token is a keyword. 
+		 */
+		if(!tokens.get(0).getType().equals(keyword)) {
+			throw new IllegalArgumentException("Syntax error on " + tokens.get(0).getLexeme() + ": All sentences must begin with a '#KEYWORD'");
+		} else {
+			return new AbstractSyntaxTree(tokens.get(0), parserHelper(tokens.subList(1, tokens.size())));
+		}
+	}
+	
+	/**
+	 * Helper method for the parser. Check the type of the input, and pass it to
+	 * the relevant helper method if not directly solvable.
+	 * @param tokens
+	 * @return
+	 */
+	public static AbstractSyntaxTree parserHelper(List<Token> tokens) {
+		
+		
+		if(tokens.size() == 0) {
+			return new AbstractSyntaxTree();
+		}
+		
+		Token firstToken = tokens.get(0);
+		String firstTokenType = firstToken.getType();
+		
+		if(firstTokenType.equals(unaryConnective)) {
+			return new AbstractSyntaxTree(firstToken, parserHelper(tokens.subList(1, tokens.size())));
+		} else if(firstTokenType.equals(quantifier)){
+			return quantifierHelper(tokens);
+		} else if (firstTokenType.equals(predicate)) {
+			return predicateHelper(tokens);
+		} else if(firstTokenType.equals(term)) {
+			return identityHelper(tokens);
+		} else if(firstTokenType.equals(atom)) {
+			//Check that more information is not contained after the atom.
+			if(tokens.size() != 1) {
+				throw new IllegalArgumentException("Syntax error on " + tokens.get(1).getLexeme());
+			}
+			return new AbstractSyntaxTree(firstToken);
+		} else if(firstTokenType.equals(openBracket)) {
+			// FIND MAIN LOGICAL OPERATOR, I.E:
+			// Read across until you hit a binary connective.  if bracket count == 1, split on the connective.
+			// If there's no binary connective: remove the outer brackets and do a recursive call on what's inside.
+			return openBracketHelper(tokens);
+		}
+		throw new IllegalArgumentException("Syntax error!");
+	}
+	
+	/**
+	 * Method returning an AST with a predicate at the root, and a nonempty
+	 * ArrayList of Token objects. First it checks the grammar of the sentence
+	 * without considering the terms, and then it iterates through the terms (checking
+	 * that they are in fact terms) and adding them to the term array of the resultant 
+	 * tree.
+	 * @param tokens List of tokens to be checked.
+	 * @return AbstractSyntaxTree with predicate at the root.
+	 */
+	public static AbstractSyntaxTree predicateHelper(List<Token> tokens) {
+		Token currentPredicate = tokens.get(0);
+		AbstractSyntaxTree returnTree = new AbstractSyntaxTree(currentPredicate);
+		
+		if((tokens.size() < 4) || !tokens.get(1).getType().equals(openBracket)) {
+			throw new IllegalArgumentException("Syntax error on " + userInput);
+		}
+		
+		for(int i = 2; i < tokens.size(); i++) {
+			if(tokens.get(i).getType().equals(term)) {
+				returnTree.addTerm(tokens.get(i));
+			} else if(tokens.get(i).getType().equals(closeBracket)) {
+				if(currentPredicate.getType().equals(predicate)) {
+					// Checking that there aren't more Token objects after this one.
+					if(i != tokens.size()-1) {
+						throw new IllegalArgumentException("Syntax error on " + tokens.get(i+1).getLexeme());
+					}
+					return returnTree;
+				} else {
+					returnTree.setLeftSubtree(parserHelper(tokens.subList(i+1, tokens.size())));
+					return returnTree;
+				}
+			} else {
+				throw new IllegalArgumentException("Syntax error on " + tokens.get(i).getLexeme());
+			}
+		}
+		return new AbstractSyntaxTree();
+	}
+	
+	/**
+	 * Method returning an AST with a quantifier at the root, and an ArrayList
+	 * containing one term-type Token object. The grammar is checked all at once,
+	 * and an exception is thrown if it is incorrect.
+	 * @param tokens List of Token objects to be checked
+	 * @return AST With quantifier as the root and a Token array of one element.
+	 */
+	public static AbstractSyntaxTree quantifierHelper(List<Token> tokens) {
+		
+		Token currentQuantifier = tokens.get(0);
+		AbstractSyntaxTree returnTree = new AbstractSyntaxTree(currentQuantifier);
+		
+		if(((tokens.size() < 5) || !tokens.get(1).getType().equals(openBracket)) ||
+			(!tokens.get(2).getType().equals(term) || !tokens.get(3).getType().equals(closeBracket))) {
+			
+			throw new IllegalArgumentException("Syntax error on " + userInput);
+		}
+		
+		returnTree.addTerm(tokens.get(2));
+		returnTree.setLeftSubtree(parserHelper(tokens.subList(4, tokens.size())));
+		
+		return returnTree;
+	}
+	
+	/**
+	 * Method returning an AST with root type identity and a term-type Token array
+	 * of exactly two element.
+	 * @param tokens List of Token objects to be checked.
+	 * @return AST with identity as the root and term-type Token list containing two elements.
+	 */
+	public static AbstractSyntaxTree identityHelper(List<Token> tokens) {
+		if((tokens.size() == 3) && tokens.get(1).getType().equals(identity)) {
+			AbstractSyntaxTree identityTree =  new AbstractSyntaxTree(tokens.get(1));
+			identityTree.addTerm(tokens.get(0));
+			identityTree.addTerm(tokens.get(2));
+			return identityTree;
+		} else {
+			throw new IllegalArgumentException("Syntax error on " + tokens.get(0));
+		}
+	}
+	
+	/**
+	 * Method searches for the main logical operator of a list of Token objects by
+	 * counting the brackets, forming a new AST with a binary connective at the root
+	 * (when a binary connective is encountered and the bracket count is 1). The left
+	 * and right sutbree are formed by recursively passing the sublists on the left
+	 * and right side of the binary connective back to the parser helper.
+	 * @param tokens List to be checked.
+	 * @return AST with binary connective at the root, and trees returned by parserHelper
+	 *         as the left and right subtree.
+	 */
+	public static AbstractSyntaxTree openBracketHelper(List<Token> tokens) {
+		
+		int bracketCount = 1;
+			
+		for(int i = 1; i < tokens.size(); i++) {
+			String thisTokenType = tokens.get(i).getType();
+			if(thisTokenType.equals(openBracket)) {
+				bracketCount++;
+				continue;
+			} else if(thisTokenType.equals(closeBracket)) {
+				bracketCount--;
+				continue;
+			} else if(thisTokenType.equals(binaryConnective)) {
+				if(bracketCount == 1 ) {
+					return new AbstractSyntaxTree(tokens.get(i), parserHelper(tokens.subList(1,i)), 
+								                                 parserHelper(tokens.subList(i+1, tokens.size()-1)));
+				} else {
+					continue;
+				}
+			} else {
+				continue;
+			}
+		}
+		if(bracketCount == 0) {
+			return parserHelper(tokens.subList(1, tokens.size()-1));
+		}
+		
+		throw new IllegalArgumentException("Bracketing error!");
+	}
+	
+	/**
+	 * Method for converting AST into ProofLine objects.
+	 * @param lineNum Current line number.
+	 * @param tree AST to be converted to line.
+	 * @param assumptionDepth Current assumption depth.
+	 * @param rule Rule used to derive the line.
+	 * @return ProofLine object storing all relevant information about a line of proof.
+	 */
+	public static ProofLine toLine(int lineNum, AbstractSyntaxTree tree, int assumptionDepth, String rule) {
+			
+		Proposition currentProp = toProp(tree.getLeftSubtree());
+		
+		boolean propChecker = true;
+		
+		if(thisLogic == PREDLOG) {
+			propChecker = propChecker(currentProp);
+		}
+		
+		if(!propChecker) {
+			throw new IllegalArgumentException("Syntax error! Please make sure that each variable is bound by exactly one quantifier!");
+		}
+		
+		ProofLine returnLine = new ProofLine(lineNum, tree.getRoot().getLexeme(), currentProp, assumptionDepth, rule);
+		//System.out.println(returnLine.toString());
+		return returnLine;
+	}
+	
+	/**
+	 * We don't permit free variables in our FOL, so this method & it's corresponding helper
+	 * ensure that all variables are bound by a quantifier. The method returns a boolean; true
+	 * by default, or false if any violation of this condition is found . The method works by 
+	 * first checking the type of the Proposition. For a QuantProp, it first checks that the 
+	 * term bound by that quantifier is a variable, and returns false if not. If it is, a new
+	 * Term array is created containing that Term and that array, along with the Proposition
+	 * in the quantifier's scope, is passed to the propCheckerHelper method. If the type is a 
+	 * predicate or identity, the type of its terms is checked. As there is no quantifier 
+	 * ranging over this atomic formula, false is returned if any of those terms are variables. 
+	 * The Proposition and its terms are then passed to the propCheckerHelper. For an AtomicProp,
+	 * true is returned. For all else, propChecker is called on the Proposition(s) within the
+	 * scope of the connectives.
+	 * @param prop Proposition to be checked for condition.
+	 * @return True if condition is satisfied, false otherwise.
+	 */
+	public static boolean propChecker(Proposition prop) {
+		
+		if(prop.getType().equals("FORALL") || prop.getType().equals("FORSOME")){
+			// For quantprop, get its term, check it is a variable, then check the prop in its scope..
+			QuantProp currentProp = (QuantProp) prop;
+			Term currentPropTerm = currentProp.getTerm();
+			if(currentPropTerm.getType().equals("CONSTANT")) {
+				//System.out.println("Error: constant is passed to a quantifier");
+				return false;
+			} else {
+				Term[] terms = {currentPropTerm};
+				//System.out.println("Recursive call to quantified proposition");
+				return propCheckerHelper(currentProp.getProp(), terms);
+			}
+		} else if(prop.getType().equals("PREDICATE") || prop.getType().equals("IDENTITY")) {
+			// Checking there are no unbound variables.
+			AtomicForm currentProp = (AtomicForm) prop;
+			Term[] currentPropTerms = currentProp.getTerms();
+			for(int i = 0; i < currentPropTerms.length; i++) {
+				if(currentPropTerms[i].getType().equals("VARIABLE")) {
+					return false;
+				} else {
+					continue;
+				}
+			}
+			return propCheckerHelper(prop, currentPropTerms);
+			
+		} else if(prop.getType().equals("ATOMIC")) {
+			return true;
+		} else if(((prop.getType().equals("AND") || prop.getType().equals("AND")) || 
+				  (prop.getType().equals("IFTHEN") || prop.getType().equals("IFF")))
+				   || prop.getType().equals("OR")){
+			BinaryProp recursiveProp = (BinaryProp) prop;
+			return propChecker(recursiveProp.getLeftProp()) && propChecker(recursiveProp.getRightProp());
+		} else if(prop.getType().equals("NOT")) {
+			UnaryProp recursiveProp = (UnaryProp) prop;
+			return propChecker(recursiveProp.getProp());
+		}
+		return true;
+	}
+	
+	
+	/**
+	 * Method takes as input a Proposition and an array of terms. This array of terms
+	 * contains all the terms in the variables bound by a quantifier in this particular
+	 * part of the proof. We recursively oass this through the layers of the Proposition,
+	 * adding more terms when more quantifiers are encountered, until we reach an AtomicForm.
+	 * If it is absurdity then true is returned, as absurdity contains no terms to speak of.
+	 * If it is an identity or predicate, then its terms are iterated through. Any variable
+	 * is checked against the list of bound variables. False is returned if the AtomicForm
+	 * contains a variable which is not bound in the list.
+	 * @param prop Proposition to be searched.
+	 * @param terms List of variables which are bound by a proposition.
+	 * @return False if an unbound variable is found, true otherwise.
+	 */
+	public static boolean propCheckerHelper(Proposition prop, Term[] terms) {
+		if(prop.getType().equals("FORALL") || prop.getType().equals("FORSOME")){
+			// For quantprop, get its terms, check they're variables, then check on its scope.
+			QuantProp currentProp = (QuantProp) prop;
+			Term currentPropTerm = currentProp.getTerm();
+			// Checking that quantifier isn't ranging over a constant
+			if(currentPropTerm.getType().equals("CONSTANT")) {
+				return false;
+			} else {
+				Term[] recursiveTerms = new Term[terms.length + 1];
+				// Checking that the variable isn't already in the scope of another quantifier
+				for(int i = 0; i < terms.length; i++) {
+					if(terms[i].getTerm().equals(currentPropTerm.getTerm())) {
+						return false;
+					} else {
+						// If it's not, we're going to add it to the term array to be recursively checked.
+						recursiveTerms[i] = terms[i];
+						continue;
+					}
+				}
+				recursiveTerms[terms.length] = currentPropTerm;
+				
+				return propCheckerHelper(currentProp.getProp(), recursiveTerms);
+			}
+		} else if(prop.getType().equals("PREDICATE") || prop.getType().equals("IDENTITY")) {
+			// Checking there are no unbound variables.
+			//System.out.println("Identity checker entered");
+			AtomicForm currentProp = (AtomicForm) prop;
+			Term[] currentPropTerms = currentProp.getTerms();
+			
+			
+			// Compare each of the predicates in this array with every predicate in the array
+			// handed to us.
+			
+			boolean matchFound = true;
+			
+			for(int i = 0; i < currentPropTerms.length; i++) {
+				
+				
+				// If the term is a constant, continue iterating.
+				if(currentPropTerms[i].getType().equals("CONSTANT")) {
+					//System.out.println("Continuing");
+					continue;
+				}
+				
+				String currentTermString = currentPropTerms[i].getTerm();
+				
+				// If it's a variable, we're going to compare it to all the quantified-over
+				// variables. If no match is found, false is returned. Otherwise, true is returned.
+				
+				for(int j = 0; j < terms.length; j++) {
+					String storedTermString = terms[j].getTerm();
+					if(currentTermString.equals(storedTermString)) {
+						matchFound = true;
+						break;
+					}
+					// If we get to the end of the comparison and no match is found, set matchFound to false
+					if(j == terms.length-1) {
+						matchFound = false;
+						return matchFound;
+					}
+				}
+				return matchFound;
+			}
+			return true;
+
+		} else if(prop.getType().equals("ATOMIC")) {
+			return true;
+		} else if(((prop.getType().equals("AND") || prop.getType().equals("AND")) || 
+				  (prop.getType().equals("IFTHEN") || prop.getType().equals("IFF")))
+				  || prop.getType().equals("OR")){
+			BinaryProp recursiveProp = (BinaryProp) prop;
+			return propCheckerHelper(recursiveProp.getLeftProp(), terms) && propCheckerHelper(recursiveProp.getRightProp(), terms);
+		} else if(prop.getType().equals("NOT")) {
+			UnaryProp recursiveProp = (UnaryProp) prop;
+			return propCheckerHelper(recursiveProp.getProp(), terms);
+		} else {
+			return false;
+		}
+	}
+	
+	/**
+	 * Method taking as input an AbstractSyntaxTree and returning a Proposition.
+	 * Traverse the tree from root to leaves, replacing creating Proposition objects
+	 * based on the type of the Token and recursively creating all sub-propositions.
+	 * @param tree AST to be converted to a Proposition.
+	 * @return Proposition representation of the input AST.
+	 */
+	public static Proposition toProp(AbstractSyntaxTree tree) {
+		
+		  Token nodeRoot = tree.getRoot();
+		  
+		  String nodeType = nodeRoot.getType();
+		  String nodeLexeme = tree.getRoot().getLexeme();
+		  
+		if(nodeType.equals(atom)) {
+			if(thisLogic == PROPLOG) {
+				return new AtomicProp(nodeLexeme);
+			} else {
+				return new AtomicForm(nodeLexeme);
+			}
+		 } else if(nodeType.equals(unaryConnective)) {
+			return new UnaryProp(nodeLexeme, toProp(tree.getLeftSubtree()));
+		 } else if(nodeType.equals(binaryConnective)) {
+			 return new BinaryProp(nodeLexeme, toProp(tree.getLeftSubtree()), toProp(tree.getRightSubtree()));
+		 } else if(nodeType.equals(quantifier)) {
+			 Term[] terms = getTermArray(tree);
+			 return new QuantProp(nodeLexeme, terms[0], toProp(tree.getLeftSubtree()));
+		 } else if (nodeType.equals(predicate)){
+			 Term[] terms = getTermArray(tree);
+			 return new AtomicForm(nodeLexeme, terms);
+		 } else if(nodeType.equals(identity)) {
+			 Term leftTerm = new Term(tree.getTerms().get(0).getLexeme());
+			 Term rightTerm = new Term(tree.getTerms().get(1).getLexeme());
+			 return new AtomicForm(nodeLexeme, leftTerm, rightTerm);
+		 } else {
+			 throw new IllegalArgumentException("Syntax error! This is not a grammatical sentence of the language!");
+		 }
+	}
+	
+	public static Term[] getTermArray(AbstractSyntaxTree tree) {
+		Term[] terms = new Term[tree.getTerms().size()];
+		 for(int i = 0; i < tree.getTerms().size(); i++) {
+			 Term currentTerm = new Term(tree.getTerms().get(i).getLexeme());
+			 terms[i] = currentTerm;
+		 }
+		 return terms;
+	}
+}

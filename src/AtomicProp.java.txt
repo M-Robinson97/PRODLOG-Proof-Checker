@@ -1,0 +1,109 @@
+/**
+ * Class for creating atomic propositions. This class
+ * extends Proposition and so inherits methods from its
+ * superclass. It also implements the abstract methods
+ * of its superclass. Purpose is to create AtomicProp
+ * objects which can be used to create recursive Proposition
+ * data structures. This class does not check the values passed
+ * to it on creation so as to increase its potential reusability.
+ * Instead, it is the responsibility of the relevant parser
+ * to ensure that only viable 'atoms' are passed to the constructor.
+ * 
+ * Note that this class does not have a main method for testing because
+ * a separate JUnit test class exists.
+ * 
+ * @author M. Robinson
+ */
+public class AtomicProp extends Proposition {
+
+	/*
+	 * Field variable for storing the String representation of the Prop.
+	 */
+	String prop;
+
+	
+	/**
+	 * Constructor for generating AtomicProp objects.
+	 * Constructor only takes as input a parameter prop;
+	 * all other field variables are initialised using
+	 * methods within the class, or other information.
+	 * If a proposition is "ABSURD", its unicode is changed
+	 * to the unicode of the absurdity symbol.
+	 * 
+	 * @param prop String representing the atomic proposition 
+	 *             being created.
+	 */
+	public AtomicProp(String prop) {
+		this.type = "ATOMIC";
+		this.prop = prop;
+		this.key = generateKey();
+		if(absurdCheck()) {
+			this.unicode = "\u22A5";
+		}
+	}
+	
+	/**
+	 * Helper method for the constructor to determine
+	 * whether a given atom is absurdity.
+	 * 
+	 * @return true if so, false otherwise.
+	 */
+	public boolean absurdCheck() {
+		if(this.prop.equals("ABSURD")) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Method to get the prop field variable
+	 * @return prop String representation of prop.
+	 */
+	public String getProp() {
+		return prop;
+	}
+
+	/**
+	 * Method to set the prop field variable.
+	 * @param prop New String representation of prop.
+	 */
+	public void setProp(String prop) {
+		this.prop = prop;
+	}
+	
+	/**
+	 * Method to generate a key for the Proposition.
+	 * As this is an atom, the key returned is simply
+	 * the prop field.
+	 * @return Key identifying this proposition.
+	 */
+	public String generateKey() {
+		return "(" + prop + ")";
+	}
+	
+
+	/**
+	 * toString method printing out human-readable interpretation
+	 * of the object. Will display either the proposition as a String,
+	 * or the absurdity symbol in brackets.
+	 */
+	public String toString() {
+		if(absurdCheck()) {
+			return "(" + unicode + ")";
+		} else {
+			return prop;
+		}
+	}
+
+	/**
+	 * deepClone method for creating copy of prop with different reference in
+	 * memory.
+	 * @return deep clone of the AtomicProp.
+	 */
+	@Override
+	public Proposition deepClone() {
+		String propCopy = prop;
+		return new AtomicProp(propCopy);
+	}
+}

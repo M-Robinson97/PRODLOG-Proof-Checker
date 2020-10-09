@@ -1,0 +1,158 @@
+
+/**
+ * Class for creating binary propositions. Constructor stores left and right Proposition,
+ * as well as the Proposition type. Main method is included for testing purposes. 
+ * @author M-Rob
+ *
+ */
+public class BinaryProp extends Proposition {
+
+	/**
+	 * Field variable for the leftProp.
+	 */
+	protected Proposition leftProp;
+	/**
+	 * Field variable for the rightProp.
+	 */
+	protected Proposition rightProp;
+
+	/**
+	 * Constructor for creating BinaryProp objects.
+	 * @param type String representation of the binary connective name
+	 * @param leftProp Lefthand Proposition
+	 * @param rightProp Righthand Propoisition
+	 */
+	public BinaryProp(String type, Proposition leftProp, Proposition rightProp) {
+		this.type = type;
+		this.leftProp = leftProp;
+		this.rightProp = rightProp;
+		this.key = generateKey();
+		assignUnicode();
+	}
+
+	/**
+	 * Getter for the leftProp
+	 * @return Proposition leftProp
+	 */
+	public Proposition getLeftProp() {
+		return leftProp;
+	}
+	/**
+	 * Setter for the leftProp
+	 * @param leftProp New Proposition leftProp
+	 */
+	public void setLeftProp(Proposition leftProp) {
+		this.leftProp = leftProp;
+	}
+	/**
+	 * Getter for the rightProp
+	 * @return Proposition rightProp
+	 */
+	public Proposition getRightProp() {
+		return rightProp;
+	}
+	/**
+	 * Setter for the rightProp
+	 * @param rightProp new Proposition rightProp
+	 */
+	public void setRightProp(Proposition rightProp) {
+		this.rightProp = rightProp;
+	}
+	/**
+	 * Getter for the type.
+	 * @return The type of the BinaryProp.
+	 */
+	public String getType() {
+		return this.type;
+	}
+	/**
+	 * Setter for the type.
+	 * @param type New type of the BinaryProp
+	 */
+	public void setType(String type) {
+		this.type = type;
+	}
+	/**
+	 * GenerateKey method recursively generating a key.
+	 * @return String key identifying this BinaryProp.
+	 */
+	public String generateKey() {
+		return "(" + leftProp.generateKey() + type + rightProp.generateKey() + ")";
+	}
+	
+	/**
+	 * toString method for creating human-readable representation of BinaryProp objects.
+	 * @return Human-readable String representation of BinaryProp.
+	 */
+	public String toString() {
+		
+		return "(" + leftProp.toString() + " " + unicode + " " + rightProp.toString() + ")";
+	}
+
+	/**
+	 * Method for creating deep clones of this BinaryProp with a different reference in mmeory.
+	 * @return deepClone of the BinaryProp with a different reference in memory.
+	 */
+	@Override
+	public Proposition deepClone() {
+		String typeCopy = this.type;
+		return new BinaryProp(typeCopy, this.getLeftProp().deepClone(), this.getRightProp().deepClone());
+	}
+	
+	public static void main(String[] args) {
+	
+		Term var1 = new Term("x");
+		Term var2 = new Term("y");
+		Term con1 = new Term("a");
+		Term con2 = new Term("b");
+		Term[] varArray = {var1, var2};
+		
+		AtomicProp atomicTestA = new AtomicProp("A");
+		AtomicProp atomicTestB = new AtomicProp("B");
+		UnaryProp negation1 = new UnaryProp("NOT", atomicTestA);
+		BinaryProp conjunction1 = new BinaryProp("AND", atomicTestB, negation1);
+		// Expected: (B AND NOT(A))
+		System.out.println(conjunction1.toString());
+		
+		// Again, control over inputs is delegated to the calling method, NOT
+		// to the object itself.
+		AtomicForm predicateTest1 = new AtomicForm("A1", varArray);
+		AtomicForm identityTest1 = new AtomicForm("IDENTITY", con1, con2);
+		AtomicForm absurdTest1 = new AtomicForm("ABSURD");
+		BinaryProp conjunction2 = new BinaryProp("AND", predicateTest1, identityTest1);
+		// Expected: (A1(xy) AND a=b)
+		System.out.println(conjunction2.toString());
+		BinaryProp conjunction3 = new BinaryProp("AND", conjunction2, absurdTest1);
+		// Expected: ((A1(xy) AND a=b) AND ABSURD)
+		System.out.println(conjunction3.toString());
+		
+		AtomicProp a2 = new AtomicProp("A");
+		
+		BinaryProp conditional1 = new BinaryProp("IFTHEN", a2, negation1);
+		// Expected: (A IFTHEN NOT(A))
+		System.out.println(conditional1.toString());
+		
+		AtomicProp a3 = new AtomicProp("A");
+		AtomicProp b3 = new AtomicProp("B");
+		AtomicProp c3 = new AtomicProp("C");
+		BinaryProp biconditional1 = new BinaryProp("IFF", a3, b3);
+		// Expected: (A IFF B)
+		System.out.println(biconditional1.toString());
+		
+		BinaryProp disjunction1 = new BinaryProp("OR", biconditional1, c3);
+		// Expected: ((A IFF B) OR C)
+		System.out.println(disjunction1.toString());
+		
+		AtomicProp a4 = new AtomicProp("A");
+		AtomicProp b4 = new AtomicProp("B");
+		AtomicProp c4 = new AtomicProp("C");
+		BinaryProp disjunction2 = new BinaryProp("OR", b4, c4);
+		System.out.println(disjunction2.toString());
+		
+		BinaryProp conjunction4 = new BinaryProp("AND", a4, disjunction1);
+		// Expected: (A AND ((A IFF B) OR C))
+		System.out.println(conjunction4.toString());
+		
+	}
+	
+}

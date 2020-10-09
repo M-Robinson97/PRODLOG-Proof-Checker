@@ -1,0 +1,301 @@
+/**
+ * Class for generating ProofLine objects. Includes a main method for testing purposes.
+ * @author M. Robinson
+ *
+ */
+public class ProofLine {
+
+	/**
+	 * Field variable representing the line number of the proof.
+	 */
+	private int lineNum;
+	/**
+	 * Field variable representing the keyword of that line.
+	 */
+	private String keyword;
+	/**
+	 * Field variable storing the Proposition of the line.
+	 */
+	private Proposition prop;
+	/**
+	 * Field variable storing the key of that proposition.
+	 */
+	private String key;
+	/**
+	 * Field variable storing how many assumptions deep the line is.
+	 */
+	private int assumptionDepth;
+	/**
+	 * Field variable storing the rule used to derive that line.
+	 */
+	private String rule;
+	
+	/**
+	 * Constructor for generating ProofLine objects.
+	 * @param lineNum Line number of the ProofLine.
+	 * @param keyword Keyword of the ProofLine.
+	 * @param prop Proposition of the ProofLine.
+	 * @param assumptionDepth How many assumptions deep the ProofLine is.
+	 * @param rule Rule used to derive the ProofLine.
+	 */
+	public ProofLine(int lineNum, String keyword, Proposition prop, int assumptionDepth, String rule) {
+		
+		this.lineNum = lineNum;
+		this.keyword = keyword;
+		this.prop = prop;
+		this.key = prop.generateKey();
+		this.assumptionDepth = assumptionDepth;
+		this.rule = rule;
+	}
+	
+	/**
+	 * Getter for the assumption depth.
+	 * @return assumptionDepth The assumption depth.
+	 */
+	public int getAssumptionDepth() {
+		return assumptionDepth;
+	}
+	/**
+	 * Setter for the assumption depth.
+	 * @param assumptionDepth New assumption depth.
+	 */
+	public void setAssumptionDepth(int assumptionDepth) {
+		this.assumptionDepth = assumptionDepth;
+	}
+	/**
+	 * Getter for the line number.
+	 * @return lineNum The line number.
+	 */
+	public int getLineNum() {
+		return lineNum;
+	}
+	/**
+	 * Setter for the line number. 
+	 * @param lineNum New line number
+	 */
+	public void setLineNum(int lineNum) {
+		this.lineNum = lineNum;
+	}
+	/**
+	 * Getter for the keyword.
+	 * @return keyword The keyword of the line.
+	 */
+	public String getKeyword() {
+		return keyword;
+	}
+	/**
+	 * Setter for the keyword.
+	 * @param keyword New keyword of the line.
+	 */
+	public void setKeyword(String keyword) {
+		this.keyword = keyword;
+	}
+	/**
+	 * Getter for the Proposition.
+	 * @return prop The Proposition stored in this line.
+	 */
+	public Proposition getProp() {
+		return prop;
+	}
+	/**
+	 * Setter for the Proposition.
+	 * @param prop New Proposition to be stored in this line.
+	 */
+	public void setProp(Proposition prop) {
+		this.prop = prop;
+	}
+	/**
+	 * Getter for the key.
+	 * @return key Key of the Proposition.
+	 */
+	public String getKey() {
+		return key;
+	}
+	/**
+	 * Setter for the key.
+	 * @param key New key to be stored.
+	 */
+	public void setKey(String key) {
+		this.key = key;
+	}
+	/**
+	 * Getter for the rule.
+	 * @return rule The rule used to derive this line.
+	 */
+	public String getRule() {
+		return this.rule;
+	}
+	/**
+	 * Setter for the rule.
+	 * @param rule The new rule.
+	 */
+	public void setRule(String rule) {
+		this.rule = rule;
+	}
+	/**
+	 * Method to change the line numbers of the rule used to
+	 * derive the line. For example, if a new premise is added mid-way
+	 * through a proof, all subsequent line numbers and references need
+	 * to be incremented. If the boolean passed to the method is true,
+	 * all line number references will be incremented by 1. If it is 
+	 * false, then they will all be decremented by 1.
+	 * @param increment Boolean determining whether to increment (true) or
+	 *                  decrement (False) the line number references.
+	 */
+	public void changeRuleNumbers(boolean increment) {
+		
+		StringBuilder newRule = new StringBuilder();
+		
+		for(int i = 0; i < rule.length(); i++) {
+			char toBeAppended = rule.charAt(i);
+			char currentChar = rule.charAt(i);
+			
+			if(Character.isDigit(currentChar)) {
+				int digit = currentChar;
+				if(increment) {
+					digit++;
+				} else {
+					digit--;
+				}
+				
+				toBeAppended = (char) digit;
+			}
+			newRule.append(toBeAppended);
+		}
+		this.rule = newRule.toString();
+	}
+	
+	/**
+	 * Method to increment the line number stored in this ProofLine (if true
+	 * is passed to the method) or decrement it (if false is passed to the
+	 * method).
+	 * @param increment Boolean determining whether to increment (true) or
+	 *                  decrement (False) the line number of this line.
+	 */
+	public void changeLineNumber(boolean increment) {
+		if(increment) {
+			this.lineNum++;
+		} else {
+			this.lineNum--;
+		}
+	}
+	
+	/**
+	 * toString() method for outputting human-readable representation of the ProofLine
+	 * object.
+	 */
+	public String toString() {
+		return lineNum + ": " + keyword + " " + prop.toString() + " KEY = " + key + " Assumption depth: " + assumptionDepth + " Rule: " + rule;
+	}
+	
+	/**
+	 * Before the GUI was built, all interaction with the system took place through the command line.
+	 * This included the outputting of Fitch-style proofs. The print method outputs a visual 
+	 * representation of this line of the proof to the command line. If all ProofLine objects contained
+	 * in a Proof object have their print() method called in order, then a full proof is printed
+	 * to the command line. The String used to create that line of proof is also returned, just in 
+	 * case it needs to be reused.
+	 * @return String String containing the visual display of this line of Proof in Fitch-style
+	 */
+	public String print() {
+		
+		// Initialise a StringBuilder to build this line of proof.
+		StringBuilder printLine = new StringBuilder();
+		// The assumption buffer is used to draw the lines of open assumptions.
+		String assumptionBuffer = "    |";
+
+		// Line number is added to the StringBuilder, and up to 4 spaces are 
+		// added (to ensure the first vertical line of the proof is always
+		// in the same position).
+		printLine.append(this.lineNum);
+		while(printLine.length() < 4) {
+			printLine.append(" ");
+		}
+		// Append the first vertical line of the proof.
+		printLine.append("|");
+		// Append an extra vertical line for each open assumption.
+		for(int i = assumptionDepth; i > 0; i--) {
+			printLine.append(assumptionBuffer);
+		}
+		// Append the proposition.
+		printLine.append(prop.toString());
+		// Helper method called to add the rule.
+		printLine = printHelperAddRule(rule, printLine);
+		// Newline character signalling the end of this line.
+		printLine.append("\n");
+		
+		// If the keyword is conclusion, then the line is displayed at the bottom of the proof
+		// on line n.
+		if(this.keyword.equals("#CONCLUSION")) {
+			StringBuilder conclusionBuffer = new StringBuilder();
+			conclusionBuffer.append(assumptionBuffer + "\n" + assumptionBuffer + "\n" + assumptionBuffer + "\n");
+			conclusionBuffer.append(printLine.toString());
+			printLine = conclusionBuffer;
+		} 
+		// Convert the StringBuilder to a String.
+		String returnString = printLine.toString();
+		// Output the line to the command line.
+		System.out.print(printLine.toString());
+		
+		return returnString;
+		
+	}
+	
+	/**
+	 * Helper method to add a derivation rule to a StringBuilder containing a line of proof
+	 * in the correct place. Method takes a max line character width (50 was adequate for
+	 * the purposes of testing the system), and uses some simple math to put the rule at 
+	 * position 50-ruleLength.
+	 * @param rule The rule to be added.
+	 * @param lineStart The StringBuilder containing the line so far.
+	 * @return lineStart with the rule appended in the correct position.
+	 */
+	public StringBuilder printHelperAddRule(String rule, StringBuilder lineStart) {
+		
+		int ruleLength = rule.length();
+		int stringLength = lineStart.length();
+		int ruleBuffer = 50;
+		
+		int i = 0;
+		while(i < (ruleBuffer - (ruleLength + stringLength))){
+			lineStart.append(" ");
+			i++;
+		}
+		lineStart.append(rule);
+		
+		return lineStart;
+	}
+
+	/**
+	 * Main method for testing proofLine.
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		
+		AtomicProp a = new AtomicProp("A");
+		UnaryProp notA = new UnaryProp("NOT", a);
+		AtomicProp b = new AtomicProp("B");
+		AtomicProp c = new AtomicProp("C");
+		BinaryProp bOrC = new BinaryProp("OR", b, c);
+		BinaryProp notAIfThenBOrC = new BinaryProp("IFTHEN", notA, bOrC);
+		
+		ProofLine testLine = new ProofLine(1, "#PREMISE", notAIfThenBOrC, 0, ("\u2192I 4,5"));
+		
+		// Testing constructor of ProofLine
+		// Expected: 1: #PREMISE (NOT(A) IFTHEN (B OR C)) KEY = ((NOT(A))IFTHEN((B)OR(C))) Assumption depth: 0 Rule: IFTHENI 4,5
+		// (Note: expected should contain symbol of formal logic where code is written in all areas except for key)
+		System.out.println(testLine.toString());
+		// Decrementing rule numbers
+		testLine.changeRuleNumbers(false);
+		System.out.println(testLine);
+		// Incrementing rule numbers (they should now match the original proofline)
+		testLine.changeRuleNumbers(true);
+		System.out.println(testLine);
+		
+		// Testing print method. The Proposition from the first test should appear twice. Once at an assumption
+		// depth of zero and once at an assumption depth of 1.
+		ProofLine testLine2 = new ProofLine(2, "#ASSUME", notAIfThenBOrC, 1, "Assumption");
+		testLine.print();
+		testLine2.print();
+	}
+}

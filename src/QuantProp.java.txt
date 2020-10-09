@@ -1,0 +1,125 @@
+/**
+ * Class for creating quantified propositions.
+ * 
+ * @author M. Robinson
+ *
+ */
+public class QuantProp extends Proposition{
+
+	/**
+	 * The proposition to be quantified over.
+	 */
+	protected Proposition prop;
+	/**
+	 * The term to which the quantification corresponds.
+	 */
+	protected Term term;
+	
+	/**
+	 * Constructor for generating quantProp objects.
+	 * @param type Type of quantifier (universal or existential)
+	 * @param term Term ranged over by that quantifier.
+	 * @param prop Proposition ranged over by that quantifier.
+	 */
+	public QuantProp(String type, Term term, Proposition prop) {
+		this.type = type;
+		this.term = term;
+		this.prop = prop;
+		this.key = generateKey();
+		assignUnicode();
+	}
+
+	/**
+	 * Getter for the Proposition.
+	 * @return Proposition quantifier ranges over.
+	 */
+	public Proposition getProp() {
+		return prop;
+	}
+	/**
+	 * Setter for prop.
+	 * @param prop Proposition to replace prop.
+	 */
+	public void setProp(Proposition prop) {
+		this.prop = prop;
+	}
+	/**
+	 * Getter for the term.
+	 * @return term Term quantification applies to.
+	 */
+	public Term getTerm() {
+		return this.term;
+	}
+	/**
+	 * Setter for the term.
+	 * @param term New Term object.
+	 */
+	public void setTerm(Term term) {
+		this.term = term;
+	}
+	
+	/**
+	 * Generate key method.
+	 * return Unique key of this Proposition.
+	 */
+	public String generateKey() {
+		StringBuilder returnString = new StringBuilder();
+		returnString.append("(");
+		returnString.append(type);
+		returnString.append("(");
+		returnString.append(term.getTerm());
+		returnString.append(")");
+		return "(" + returnString.toString() + prop.generateKey() + ")";
+	}
+	
+	/**
+	 * toString method for creating human-readable representation of quantified
+	 * propositions.
+	 * @return human-readable representation of the QuantProp.
+	 */
+	public String toString() {
+		
+		StringBuilder returnString = new StringBuilder();
+		returnString.append(unicode);
+		returnString.append(term.getTerm());
+		returnString.append("(");
+		returnString.append(prop.toString());
+		returnString.append(")");
+		return returnString.toString();
+	}
+	
+	/**
+	 * deepClone method for creating copies of a QuantProp with a different reference
+	 * in memory.
+	 * @return Deep clone of QuantProp with different reference in memory.
+	 */
+	@Override
+	public Proposition deepClone() {
+		Term termClone = term.deepClone();
+		String typeClone = this.type;
+		
+		return new QuantProp(typeClone, termClone, prop.deepClone());
+	}
+	
+	/**
+	 * Main method for testing QuantProp class.
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		Term varX = new Term("x");
+		Term varY = new Term("y");
+		Term[] xArray = {varX};
+		Term[] yArray = {varY};
+		AtomicForm xEqualsY = new AtomicForm("=", varX, varY);
+		AtomicForm aY = new AtomicForm("A", yArray);
+		AtomicForm aX = new AtomicForm("A", xArray);
+		BinaryProp aYIfThenXEqualsY = new BinaryProp("IFTHEN", aY, xEqualsY);
+		QuantProp forAllY = new QuantProp("FORALL", varY, aYIfThenXEqualsY);
+		BinaryProp aXAndForAllY = new BinaryProp("AND", aX, forAllY);
+		QuantProp forSomeX = new QuantProp("FORSOME", varX, aXAndForAllY);
+		// Expected: ((FORSOME(x)(((A)(x))AND((FORALL(y)(((A)(y))IFTHEN((x)=(y))))))
+		System.out.println(forSomeX.getKey());
+		// Expected: The above, but with relaxed bracketing conventions & words replaced with symbols.
+		System.out.println(forSomeX.toString());
+	}
+}

@@ -1,0 +1,78 @@
+/**
+ * Class for generating UnaryProp onjects.
+ * @author M. Robinson
+ *
+ */
+public class UnaryProp extends Proposition{
+
+	/**
+	 * Proposition ranged over by the unary connective.
+	 */
+	protected Proposition prop;
+	
+	/**
+	 * Constructor for generating UnaryProp objects.
+	 * @param type Type of the UnaryProp
+	 * @param prop Proposition stored in the UnaryProp
+	 */
+	public UnaryProp(String type, Proposition prop) {
+		this.type = type;
+		this.prop = prop;
+		this.key = generateKey();
+		assignUnicode();
+	}
+	
+	/**
+	 * Getter for the Proposition.
+	 * @return prop The Proposition stored in UnaryProp
+	 */
+	public Proposition getProp() {
+		return prop;
+	}
+	/**
+	 * Setter for the Proposition stored in the UnaryProp.
+	 * @param prop New Proposition stored in UnaryProp
+	 */
+	public void setProp(Proposition prop) {
+		this.prop = prop;
+	}
+	/**
+	 * Method for generating the UnaryProp's unique key.
+	 * @return Unique key of the UnaryProp
+	 */
+	public String generateKey() {
+		return "(" + type + prop.generateKey() + ")";
+	}
+	/**
+	 * toString method for producing human-readable representations
+	 * of the UnaryProp. 
+	 * @return Human-readable representation of UnaryProp object.
+	 */
+	public String toString() {
+		return unicode + prop.toString();
+	}
+	/**
+	 * deepClone method for producing copies of UnaryProp with different
+	 * reference in memory.
+	 * @return Copy of UnaryProp with different reference in memory.
+	 */
+	@Override
+	public Proposition deepClone() {
+		
+		String typeClone = type;
+		
+		return new UnaryProp(typeClone, prop.deepClone());
+	}
+	
+	public static void main(String[] args) {
+		UnaryProp negation1 = new UnaryProp("NOT", new BinaryProp("AND", new AtomicProp("A"), new AtomicProp("B")));
+		Term[] termArray = {new Term("x")};
+		QuantProp quantProp = new QuantProp("FORALL", new Term("x"), new AtomicForm("A", termArray));
+		BinaryProp conjunction = new BinaryProp("OR", negation1, quantProp);
+		UnaryProp negation2 = new UnaryProp("NOT", conjunction);
+		// Expected: NOT(A AND B)
+		System.out.println(negation1.toString());
+		// Expected: NOT(NOT(A AND B) OR FORALL(x)(A(x)))
+		System.out.println(negation2.toString());
+	}
+}

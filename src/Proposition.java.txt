@@ -1,0 +1,198 @@
+/**
+ * Abstrract superclass Proposition, whose methods are inherited
+ * by all Proposition subclasses. Contains functions common to all
+ * Propositions.
+ * @author M. Robinson
+ *
+ */
+
+public abstract class Proposition {
+	
+	/**
+	 * String representing the type of the Proposition.
+	 */
+	protected String type;
+	/**
+	 * String representing the Proposition's unique key.
+	 */
+	protected String key;
+	/**
+	 * String representing the type's unicode symbol
+	 */
+	protected String unicode;
+	
+	/**
+	 * Method to automatically assign unicode the correct value based on the type.
+	 */
+	public void assignUnicode() {
+		if(this.type.equals("AND")) {
+			unicode = "\u2227";
+		} else if(this.type.equals("OR")) {
+			unicode = "\u2228";
+		} else if(this.type.equals("IFTHEN")) {
+			unicode = "\u2192";
+		} else if(this.type.equals("IFF")) {
+			unicode = "\u2194";
+		} else if(this.type.equals("NOT")) {
+			unicode = "\u00AC";
+		} else if(this.type.equals("FORALL")) {
+			unicode = "\u2200";
+		} else if(type.equals("FORSOME")) {
+			unicode = "\u2203";
+		}
+	}
+
+	/**
+	 * Getter for the unicode.
+	 * @return unicode String representing the type' sunicode symbol.
+	 */
+	public String getUnicode() {
+		return this.unicode;
+	}
+	/**
+	 * Setter for the unicode.
+	 * @param unicode New value of unicode.
+	 */
+	public void setUnicode(String unicode) {
+		this.unicode = unicode;
+	}
+	/**
+	 * Getter for the type.
+	 * @return type String representing type of Proposition.
+	 */
+	public String getType() {
+		return type;
+	}
+	/**
+	 * Setter for the type.
+	 * @param type New type to be stored.
+	 */
+	public void setType(String type) {
+		this.type = type;
+	}
+	/**
+	 * Abstract method which must be implemented by subclasses. Different
+	 * subclasses will generate their key in different ways, but all must do
+	 * it somehow.
+	 */
+	public abstract String generateKey();
+	
+	/**
+	 * Method to get the key.
+	 * @return key String representing the Proposition's unique key.
+	 */
+	public String getKey() {
+		return this.key;
+	}
+	
+	/**
+	 * Method to set the key
+	 * @param key New key to replace the old one.
+	 */
+	public void setKey(String key) {
+		this.key = key;
+	}
+	
+	
+	/**
+	 * METHOD REMOVED BECAUSE PROPOSITIONS ARE COMPARED ON THEIR GENERATEKEY METHOD.
+	 * 
+	 * With more time, the code would be refactored so that this method would be name
+	 * something like cropCountingTags. Basically, to allow duplicates of the same method
+	 * in the proof, a number is attached to the end of the key. This method returns a key
+	 * without any of those counting numbers at the end.
+	 * @param key Key from which counting index should be removed.
+	 * @return String representing the key with any counting tags removed.
+	 
+	public String cropLastDigit(String key) {
+		
+		boolean shouldDelete = false;
+		StringBuilder returnString = new StringBuilder();
+		
+		for(int i = 0; i < key.length(); i++) {
+			
+			if(Character.isDigit(key.charAt(i)) && shouldDelete) {
+				continue;
+			} else {
+				shouldDelete = false;
+			}
+			
+			if(key.charAt(i) == ')') {
+				shouldDelete = true;
+			}
+
+			returnString.append(key.charAt(i));
+		}
+		
+		return returnString.toString();
+	}
+	*/
+	
+	/**
+	 * deepClone method must be implemented by subclasses. Purpose is to create a copy
+	 * of the object with a different reference in memory.
+	 * @return deepClone of the Proposition.
+	 */
+	public abstract Proposition deepClone();
+	
+	/**
+	 * Method to establish whether two Proposition objects are equal. For this to be the 
+	 * case, their keys are compared. If they match, then the Propositions are equal. Otherwise,
+	 * they are not.
+	 * @param other Proposition that this proposition is being compared against.
+	 * @return True if the keys match. false otherwise.
+	 */
+	public boolean equals(Proposition other) {
+		return this.generateKey().equals(other.generateKey());
+	}
+	
+	/**
+	 * Main method for testing Proposition. Descriptions of tests are not provided as Proposition
+	 * is also fully tested in JUnit.
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		AtomicProp a1 = new AtomicProp("A");
+		System.out.println(a1.generateKey());
+		AtomicProp b1 = new AtomicProp("B");
+		System.out.println(b1.generateKey());
+		UnaryProp notB1 = new UnaryProp("NOT", b1);
+		BinaryProp a1AndNotB1 = new BinaryProp("AND", a1, notB1);
+		System.out.println(a1AndNotB1.generateKey());
+		AtomicProp a2 = new AtomicProp("A");
+		System.out.println(a2.generateKey());
+		AtomicProp b2 = new AtomicProp("B");
+		System.out.println(b2.generateKey());
+		UnaryProp notB2 = new UnaryProp("NOT", b2);
+		BinaryProp a2AndNotB2 = new BinaryProp("AND", a2, notB2);
+		System.out.println(a2AndNotB2.generateKey());
+		System.out.println("Comparison: " + a1AndNotB1.equals(a2AndNotB2));
+		
+		AtomicProp a3 = new AtomicProp("A");
+		System.out.println(a1.generateKey());
+		AtomicProp b3 = new AtomicProp("B");
+		System.out.println(b1.generateKey());
+		AtomicProp c3 = new AtomicProp("C");
+		System.out.println(c3.generateKey());
+		BinaryProp a3AndB3 = new BinaryProp("AND", a3, b3);
+		System.out.println(a3AndB3.generateKey());
+		BinaryProp a3AndB3OrC31 = new BinaryProp("OR", a3AndB3, c3);
+		System.out.println(a3AndB3OrC31.generateKey());
+		
+		AtomicProp a4 = new AtomicProp("A");
+		System.out.println(a4.generateKey());
+		AtomicProp b4 = new AtomicProp("B");
+		System.out.println(b4.generateKey());
+		AtomicProp c4 = new AtomicProp("C");
+		System.out.println(c4.generateKey());
+		BinaryProp b4OrC4 = new BinaryProp("OR", b4, c4);
+		System.out.println(b4OrC4.generateKey());
+		BinaryProp a4AndB4OrC41 = new BinaryProp("AND", a4, b4OrC4);
+		System.out.println(a4AndB4OrC41.generateKey());
+		
+		
+		System.out.println("Comparison: " + a3AndB3OrC31.equals(a4AndB4OrC41));
+	}
+
+	
+}

@@ -1,0 +1,208 @@
+/**
+ * Class for creating Assumption objects. Class stores whether 
+ * or not an Assumption is closed, and the startLine of the 
+ * Assumption. If the assumption is closed, then it also stores
+ * the end line of the assumption.
+ * @author M. Robinson
+ *
+ */
+public class Assumption {
+	
+	/**
+	 * Field variable identifying whether or not the assumption is closed
+	 */
+	private boolean closed;
+	/**
+	 * The starting line of the assumption
+	 */
+	private ProofLine startLine;
+	/**
+	 * The closing line of the assumption
+	 */
+	private ProofLine endLine;
+	
+	/**
+	 * Constructor for creating open assumptions.
+	 * @param startLine The starting line of the assumption.
+	 */
+	public Assumption(ProofLine startLine) {
+		this.startLine = startLine;
+		this.closed = false;
+		this.endLine = null;
+	}
+	
+	/**
+	 * Constructor for creating closed assumptions.
+	 * @param startLine The starting line of the assumption.
+	 * @param endLine The closing line of the assumption.
+	 */
+	public Assumption(ProofLine startLine, ProofLine endLine) {
+		
+		if(startLine.getAssumptionDepth() == endLine.getAssumptionDepth()) {
+			this.startLine = startLine;
+			this.closed = true;
+			this.endLine = endLine;
+		} else {
+			throw new IllegalArgumentException("Error! Cannot close an assumption with a line of a different depth");
+		}
+	}
+
+	/**
+	 * Method for closing assumptions. Method checks that both lines are of the same
+	 * assumption depth. If not, an exception is thrown. If so, the assumption is closed.
+	 * @param endLine The new closing line of the assumption.
+	 */
+	public void closeAssumption(ProofLine endLine) {
+		if(this.startLine.getAssumptionDepth() == endLine.getAssumptionDepth()) {
+			this.endLine = endLine;
+			this.closed = true;
+		} else {
+			throw new IllegalArgumentException("Error! Cannot close an assumption with a line of a different depth");
+		}
+	}
+	
+	/**
+	 * Method to increment the line numbers of the lines contained in an Assumption.
+	 */
+	public void incrementLineNumbers() {
+		int startLineNum = startLine.getLineNum();
+		startLine.setLineNum(startLineNum++);
+		if(closed) {
+			int endLineNum = endLine.getLineNum();
+			endLine.setLineNum(endLineNum++);
+		}
+	}
+
+	/**
+	 * Method returning whether or not the assumption is closed.
+	 * This is the getter for closed.
+	 * @return True if closed, false otherwise.
+	 */
+	public boolean isClosed() {
+		return closed;
+	}
+	/**
+	 * Setter for closed.
+	 * @param closed New value of closed
+	 */
+	public void setClosed(boolean closed) {
+		this.closed = closed;
+	}
+	/**
+	 * Getter for the start line.
+	 * @return The starting line of the assumption.
+	 */
+	public ProofLine getStartLine() {
+		return startLine;
+	}
+	/**
+	 * Setter for the start line.
+	 * @param startLine New starting line of the assumtpion.
+	 */
+	public void setStartLine(ProofLine startLine) {
+		this.startLine = startLine;
+	}
+	/**
+	 * Getter for the end line.
+	 * @return Closing line of the assumption (null if not closed)
+	 */
+	public ProofLine getEndLine() {
+		return endLine;
+	}
+	/**
+	 * Setter for the endLine.
+	 * @param endLine New endLine of the assumption.
+	 */
+	public void setEndLine(ProofLine endLine) {
+		this.endLine = endLine;
+	}
+	
+	/**
+	 * Method to test whether the key of a given Proposition is
+	 * the same as they key of the Proposition contained in the
+	 * starting line.
+	 * @param key Key for comparison with key of startLine
+	 * @return True if they match, false otherwise.
+	 */
+	public boolean equalsStartLine(String key) {
+		if(this.startLine.getKey().equals(key)) {
+			return true;
+		} else { 
+			return false;
+		}
+	}
+	
+	/**
+	 * Method to test whether the key of a given Proposition is
+	 * the same as they key of the Proposition contained in the
+	 * closing line.
+	 * @param key Key for comparison with key of endLine
+	 * @return True if they match, false otherwise.
+	 */
+	public boolean equalsEndLine(String key) {
+		if(this.endLine.getKey().equals(key)) {
+			return true;
+		} else { 
+			return false;
+		}
+	}
+	
+	/**
+	 * toString() method for printing human-readable representation of Assumption objects.
+	 */
+	public String toString() {
+		if(closed) {
+			return "Start Line: " + startLine.toString() + "\nEnd Line: " + endLine.toString() + "\nAssumption closed: true";
+		} else {
+			return "Start Line: " + startLine.toString() + "\nAssumption closed: false";
+		}
+	}
+	
+	/**
+	 * Main method for testing Assumption class against the command line. Two ProofLine objects
+	 * are generated, first with different assumption depths. At first this revealed a few
+	 * basic errors which appeared out of not paying enough attention.
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		AtomicProp a = new AtomicProp("A");
+		UnaryProp notA = new UnaryProp("NOT", a);
+		AtomicProp b = new AtomicProp("B");
+		AtomicProp c = new AtomicProp("C");
+		BinaryProp bOrC = new BinaryProp("OR", b, c);
+		BinaryProp notAIfThenBOrC = new BinaryProp("IFTHEN", notA, bOrC);
+		
+		
+		ProofLine testLine1 = new ProofLine(6, "#ASSUME", notAIfThenBOrC, 1, ("\u2192I 4,5"));
+		ProofLine testLine2 = new ProofLine(17, "#DERIVE", notAIfThenBOrC, 2, "Assumption");
+		
+		Assumption passTest = new Assumption(testLine1);
+		// Testing first constructor. Expected is toString method of this line, and 
+		// that closed is false.
+		System.out.println("Testing first constructor:");
+		System.out.println(passTest.toString());
+		// Testing that an exception is thrown if the user tries to close an Assumption
+		// with a line of a different depth.
+		System.out.println("Testing exception thrown:");
+		try {
+			passTest.closeAssumption(testLine2);
+		}catch(IllegalArgumentException e) {
+			System.out.println("Exception caught. Error message: " + e.getMessage());
+		}
+		// Testing successful closing of an assumption (expecting toString methods
+	    // of BOTH lines and that closed is now true.
+		testLine2.setAssumptionDepth(testLine1.getAssumptionDepth());
+		passTest.closeAssumption(testLine2);
+		System.out.println("Testing closeAssumption:");
+		System.out.println(passTest.toString());
+		// Testing the second constructor. Expecting toString method of both constructors
+	    // and that closed is true. No need to test error-throwing branch of the conditional
+		// as it's virtually the same conditional tested earlier.
+		System.out.println("Testing second constructor:");
+		Assumption passTest2 = new Assumption(testLine1, testLine2);
+		System.out.println(passTest2.toString());
+		
+		
+	}
+	
+}
