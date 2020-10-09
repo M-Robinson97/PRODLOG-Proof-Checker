@@ -1,0 +1,220 @@
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
+/**
+ * JUnit tests for AtomicForm class.
+ * @author M. Robinson
+ *
+ */
+class AtomicFormTest {
+	
+	Term var1 = new Term("x");
+	Term var2 = new Term("y");
+	Term con1 = new Term("a");
+	Term con2 = new Term("b");
+	Term[] varArray = {var1, var2};
+	Term[] conArray = {con1, con2};
+	Term[] empArray = {};
+	
+	// Again, control over inputs is delegated to the calling method, NOT
+	// to the object itself.
+	AtomicForm predicateTest1 = new AtomicForm("A1", varArray);
+	AtomicForm predicateTest2 = new AtomicForm("", conArray);
+	AtomicForm predicateTest3 = new AtomicForm("", empArray);
+	AtomicForm identityTest1 = new AtomicForm("IDENTITY", con1, con2);
+	AtomicForm identityTest2 = new AtomicForm("Curmudgeon", var1, var2);
+	AtomicForm absurdTest1 = new AtomicForm("ABSURD");
+	AtomicForm absurdTest2 = new AtomicForm("CURMUDGEON");
+	
+	
+	/**
+	 * Testing generateKey method for propositions above.
+	 */
+	@Test
+	void testGenerateKey() {
+		assertEquals("((A1)(x)(y))", predicateTest1.generateKey());
+		assertEquals("(()(a)(b))", predicateTest2.generateKey());
+		assertEquals("(())", predicateTest3.generateKey());
+		assertEquals("((a)=(b))", identityTest1.generateKey());
+		assertEquals("((x)=(y))", identityTest2.generateKey());
+		assertEquals("(ABSURD)", absurdTest1.generateKey());
+		assertEquals("(ABSURD)", absurdTest2.generateKey());
+		
+	}
+
+	/**
+	 * Testing getTypeCode for propositions above.
+	 */
+	@Test
+	void testGetTypeCode() {
+	
+		int predicate = 1;
+		int identity = 2;
+		int absurdity = 3;
+		
+		assertEquals(predicate, predicateTest1.getTypeCode());
+		assertEquals(predicate, predicateTest2.getTypeCode());
+		assertEquals(predicate, predicateTest3.getTypeCode());
+		assertEquals(identity, identityTest1.getTypeCode());
+		assertEquals(identity, identityTest2.getTypeCode());
+		assertEquals(absurdity, absurdTest1.getTypeCode());
+		assertEquals(absurdity, absurdTest2.getTypeCode());
+	}
+
+	/**
+	 * Testing setTypeCode for propositions above. For bad typeCodes
+	 * an exception is thrown. This is tested by changing the value
+	 * of a boolean in a try-catch block and testing the value
+	 * of that boolean.
+	 */
+	@Test
+	void testSetTypeCode() {
+		
+		boolean exceptionThrown1 = false;
+		try {
+		predicateTest1.setTypeCode(123456789);
+		} catch(IllegalArgumentException e) {
+			exceptionThrown1 = true;
+		}
+		assertTrue(exceptionThrown1);
+		
+		boolean exceptionThrown2 = false;
+		try {
+		predicateTest1.setTypeCode(0);
+		} catch(IllegalArgumentException e) {
+			exceptionThrown2 = true;
+		}
+		assertTrue(exceptionThrown2);
+		
+		predicateTest1.setTypeCode(2);
+		assertEquals(2, predicateTest1.getTypeCode());
+	}
+
+	/**
+	 * Testing getPred method.
+	 */
+	@Test
+	void testGetPred() {
+		assertEquals("A1", predicateTest1.getPred());
+		assertEquals("", predicateTest2.getPred());
+		assertEquals("", predicateTest3.getPred());
+		assertNull(identityTest1.getPred());
+		assertNull(identityTest2.getPred());
+		assertNull(absurdTest1.getPred());
+		assertNull(absurdTest2.getPred());
+	}
+
+	/**
+	 * Testing setPred method.
+	 */
+	@Test
+	void testSetPred() {
+		predicateTest1.setPred("");
+		assertEquals("", predicateTest1.getPred());
+		predicateTest1.setPred("Hello World");
+		assertEquals("Hello World", predicateTest1.getPred());
+		predicateTest1.setPred(null);
+		assertNull(predicateTest1.getPred());
+	}
+
+	/**
+	 * Testing getTerms method.
+	 */
+	@Test
+	void testGetTerms() {
+		
+		assertArrayEquals(varArray, predicateTest1.getTerms());
+		assertArrayEquals(conArray, predicateTest2.getTerms());
+		assertArrayEquals(empArray, predicateTest3.getTerms());
+	}
+
+	/**
+	 * Testing setTerms method.
+	 */
+	@Test
+	void testSetTerms() {
+		Term[] allTerms = {var1, var2, con1, con2};
+		Term[] someTerms = {var1, con2};
+		predicateTest1.setTerms(allTerms);
+		assertEquals(allTerms, predicateTest1.getTerms());
+		predicateTest1.setTerms(empArray);
+		assertEquals(empArray, predicateTest1.getTerms());
+		predicateTest1.setTerms(someTerms);
+		assertEquals(someTerms, predicateTest1.getTerms());
+		predicateTest1.setTerms(null);
+		assertNull(predicateTest1.getTerms());
+	}
+
+	/**
+	 * Testing getProp method.
+	 */
+	@Test
+	void testGetProp() {
+		String predicateTest1Prop = "A1xy";
+		String predicateTest2Prop = "ab";
+		String predicateTest3Prop = "";
+		String identityTest1Prop = "a=b";
+		String identityTest2Prop = "x=y";
+		String absurdTest1Prop = "ABSURD";
+		String absurdTest2Prop = "ABSURD";
+		
+		assertEquals(predicateTest1Prop, predicateTest1.getProp());
+		assertEquals(predicateTest2Prop, predicateTest2.getProp());
+		assertEquals(predicateTest3Prop, predicateTest3.getProp());
+		assertEquals(identityTest1Prop, identityTest1.getProp());
+		assertEquals(identityTest2Prop, identityTest2.getProp());
+		assertEquals(absurdTest1Prop, absurdTest1.getProp());
+		assertEquals(absurdTest2Prop, absurdTest2.getProp());
+	}
+
+	/**
+	 * Testing setProp method.
+	 */
+	@Test
+	void testSetProp() {
+		predicateTest1.setProp("PROPOSITION");
+		assertEquals("PROPOSITION", predicateTest1.getProp());
+		predicateTest1.setProp("");
+		assertEquals("", predicateTest1.getProp());
+		predicateTest1.setProp("A45!_");
+		assertEquals("A45!_", predicateTest1.getProp());
+		predicateTest1.setProp(null);
+		assertNull(predicateTest1.getProp());
+	}
+	
+	/**
+	 * Testing deepClone method.
+	 */
+	@Test
+	void testDeepClone() {
+		predicateTest1.setProp("PROPOSITION");
+		AtomicForm predTest1Clone = (AtomicForm) predicateTest1.deepClone();
+		assertTrue(predicateTest1.equals(predTest1Clone));
+		predTest1Clone.replaceTerm(1, new Term("n"));
+		assertFalse(predicateTest1.equals(predTest1Clone));
+	}
+
+	/**
+	 * Testing toString method.
+	 */
+	@Test
+	void testToString() {
+		
+		String predicateTest1ToString = "A1xy";
+		String predicateTest2ToString = "ab";
+		String predicateTest3ToString = "";
+		String identityTest1ToString = "a=b";
+		String identityTest2ToString = "x=y";
+		String absurdTest1ToString = "(\u22A5)";
+		String absurdTest2ToString = "(\u22A5)";
+		
+		assertEquals(predicateTest1ToString, predicateTest1.toString());
+		assertEquals(predicateTest2ToString, predicateTest2.toString());
+		assertEquals(predicateTest3ToString, predicateTest3.toString());
+		assertEquals(identityTest1ToString, identityTest1.toString());
+		assertEquals(identityTest2ToString, identityTest2.toString());
+		assertEquals(absurdTest1ToString, absurdTest1.toString());
+		assertEquals(absurdTest2ToString, absurdTest2.toString());
+	}
+
+}

@@ -1,0 +1,236 @@
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
+
+/**
+ * JUnit testing for Abstract class Proposition.
+ * Abstract methods getKey, setKey and generateKey are not tested.
+ * @author M. Robinson
+ *
+ */
+class PropositionTest {
+
+	/**
+	 * Initialising Proposition objects of every kind.
+	 */
+	AtomicProp a1 = new AtomicProp("A");
+	AtomicProp b1 = new AtomicProp("B");
+	UnaryProp notB1 = new UnaryProp("NOT", b1);
+	BinaryProp conjunction1 = new BinaryProp("AND", a1, notB1);
+	
+	AtomicProp a2 = new AtomicProp("A");
+	AtomicProp b2 = new AtomicProp("B");
+	UnaryProp negation1 = new UnaryProp("NOT", b2);
+	
+	BinaryProp conditional1 = new BinaryProp("IFTHEN", a2, negation1);
+	
+	AtomicProp a3 = new AtomicProp("A");
+	AtomicProp b3 = new AtomicProp("B");
+	AtomicProp c3 = new AtomicProp("C");
+	BinaryProp biconditional1 = new BinaryProp("IFF", a3, b3);
+	
+	BinaryProp disjunction1 = new BinaryProp("OR", biconditional1, c3);
+	
+	AtomicProp a4 = new AtomicProp("A");
+	AtomicProp b4 = new AtomicProp("B");
+	AtomicProp c4 = new AtomicProp("C");
+	BinaryProp disjunction2 = new BinaryProp("OR", b4, c4);
+	
+	BinaryProp conjunction2 = new BinaryProp("AND", a4, disjunction1);
+	
+	UnaryProp negation2 = new UnaryProp("NOT", conjunction2);
+	UnaryProp negation3 = new UnaryProp("NOT", negation2);
+	
+	Term[] x = {new Term("x")};
+	Term xTerm = x[0];
+	QuantProp testUniQuant = new QuantProp("FORALL", xTerm, new AtomicForm("A", x));
+	QuantProp testExiQuant = new QuantProp("FORSOME", xTerm, new AtomicForm("B", x));
+	AtomicForm identityTest = new AtomicForm("=", x[0], x[0]);
+	AtomicForm predicateTest = new AtomicForm("C", x);
+	
+	AtomicProp absurd1 = new AtomicProp("ABSURD");
+	
+	AtomicForm absurd2 = new AtomicForm("ABSURD");
+	
+	Term varX = new Term("x");
+	Term varY = new Term("y");
+	Term[] xArray = {varX};
+	Term[] yArray = {varY};
+	AtomicForm xEqualsY = new AtomicForm("=", varX, varY);
+	AtomicForm aY = new AtomicForm("A", yArray);
+	AtomicForm aX = new AtomicForm("A", xArray);
+	BinaryProp aYIfThenXEqualsY = new BinaryProp("IFTHEN", aY, xEqualsY);
+	QuantProp forAllY = new QuantProp("FORALL", varY, aYIfThenXEqualsY);
+	BinaryProp aXAndForAllY = new BinaryProp("AND", aX, forAllY);
+	QuantProp forSomeX = new QuantProp("FORSOME", varX, aXAndForAllY);
+
+
+	/**
+	 * Unicode is assigned automatically on creation of the relevant object. Therefore, 
+	 * we can test assignUnicode() indirectly using getUnicode.
+	 */
+	@Test
+	void testGetUnicode() {
+		String conjunctionUnicode = "\u2227";
+    	String disjunctionUnicode = "\u2228";
+    	String conditionalUnicode = "\u2192";
+    	String biconditionalUnicode = "\u2194";
+    	String negationUnicode = "\u00AC";
+    	String universalUnicode = "\u2200";
+    	String existentialUnicode = "\u2203";
+    	String absurdUnicode = "\u22A5";
+    	String identityUnicode = "\u003D";
+    	
+    	assertNull(a1.getUnicode());
+    	assertNull(predicateTest.getUnicode());
+    	assertEquals(conjunctionUnicode, conjunction1.getUnicode());
+		assertEquals(disjunctionUnicode, disjunction1.getUnicode());
+		assertEquals(conditionalUnicode, conditional1.getUnicode());
+		assertEquals(biconditionalUnicode, biconditional1.getUnicode());
+		assertEquals(negationUnicode, negation1.getUnicode());
+		assertEquals(universalUnicode, testUniQuant.getUnicode());
+		assertEquals(existentialUnicode, testExiQuant.getUnicode());
+		assertEquals(identityUnicode, identityTest.getUnicode());
+		assertEquals(absurdUnicode, absurd1.getUnicode());
+		assertEquals(absurdUnicode, absurd2.getUnicode());
+	}
+
+	/**
+	 * Testing setUnicode. Note that responsibility for ensuring that a quality unicode value is 
+	 * received by the setter falls to the calling method.
+	 */
+	@Test
+	void testSetUnicode() {
+		conjunction1.setUnicode("hello");
+		assertEquals("hello", conjunction1.getUnicode());
+		
+		conjunction1.setUnicode("");
+		assertEquals("", conjunction1.getUnicode());
+		
+		conjunction1.setUnicode("\u2227");
+		assertEquals("\u2227", conjunction1.getUnicode());
+	}
+
+	/**
+	 * Testing getType method.
+	 */
+	@Test
+	void testGetType() {
+		assertEquals("ATOMIC", a1.getType());
+		assertEquals("AND", conjunction1.getType());
+		assertEquals("OR", disjunction1.getType());
+		assertEquals("IFTHEN", conditional1.getType());
+		assertEquals("IFF", biconditional1.getType());
+		assertEquals("NOT", negation1.getType());
+		assertEquals("FORALL", testUniQuant.getType());
+		assertEquals("FORSOME", testExiQuant.getType());
+		assertEquals("IDENTITY", identityTest.getType());
+		assertEquals("PREDICATE", predicateTest.getType());
+		assertEquals("ATOMIC", absurd1.getType());
+		assertEquals("ATOMIC", absurd2.getType());
+	}
+
+	/**
+	 * Testing setType. Again, any limitations on type are restricted by the calling method, not
+	 * by the method itself. 
+	 */
+	@Test
+	void testSetType() {
+		biconditional1.setType("AND");
+		assertEquals("AND", biconditional1.getType());
+		
+		biconditional1.setType("BICONDITIONALS ARE FUN!");
+		assertEquals("BICONDITIONALS ARE FUN!", biconditional1.getType());
+		
+		biconditional1.setType("");
+		assertEquals("", biconditional1.getType());
+	}
+	
+	/**
+	 * Testing getKey. This test revealed something crucial; keys for atoms are not parenthesised 
+	 * by default. This could lead to significant problems down the line as my system would not be 
+	 * able to distinguish between An (A-index-n) and An (A labelled with a number to indicate that
+	 * this is the n+1th instance of A within the proof. Have now changed the generateKey()
+	 * methods to rectify this. Similar problem was faced with individual terms, as Term 
+	 * class was not implemented with a generateKey() method. Such a method has now been
+	 * added. Also updated generateKey() for AtomicForm wrt absurdity so as to be consistent
+	 * with AtomicProp. 
+	 */
+	@Test
+	void testGetKey() {
+		assertEquals("(A)", a1.generateKey());
+		assertEquals("(NOT(B))", negation1.generateKey());
+		assertEquals("((A)AND(NOT(B)))", conjunction1.generateKey());
+		assertEquals("((A)IFTHEN(NOT(B)))", conditional1.generateKey());
+		assertEquals("((A)IFF(B))", biconditional1.generateKey());
+		assertEquals("(((A)IFF(B))OR(C))", disjunction1.generateKey());
+		assertEquals("(NOT(NOT((A)AND(((A)IFF(B))OR(C)))))", negation3.generateKey());
+		assertEquals("((x)=(x))", identityTest.generateKey());
+		assertEquals("((A)(y))", aY.generateKey());
+	}
+	/**
+	 * Testing setKey method.
+	 */
+	@Test
+	void testSetKey() {
+		negation1.setKey("");
+		assertEquals("", negation1.getKey());
+		
+		negation1.setKey("OHNO_1");
+		assertEquals("OHNO_1", negation1.getKey());
+		
+		negation1.setKey("((a)");
+		assertEquals("((a)", negation1.getKey());
+		
+		aY.setKey(aY.getKey() + "1");
+		assertEquals("((A)(y))1", aY.getKey());
+	}
+	
+	/**
+	 * Testing cropLastDigit method. This test encouraged me to make some changes method
+	 * so as to crop all numbers after a bracket instead of just the last digit. This
+	 * required changing my entire tactic with the method. Quite an interesting one
+	 * though - figuring out how to remove a specific char from a String. 
+	 * 
+	 * AFTER TESTING THE EQUALS METHOD, IT WAS DECIDED THAT CROPLASTDIGIT COULD BE REMOVED
+	 
+	@Test
+	void testCropLastDigit() {
+		String conjunction1Original = conjunction1.getKey();
+		String conjunction1NewKey1 = conjunction1Original + "1";
+		conjunction1.setKey(conjunction1NewKey1);
+		assertEquals("((A)AND(NOT(B)))1", conjunction1.getKey());
+		conjunction1.setKey(conjunction1.cropLastDigit(conjunction1NewKey1));
+		assertEquals("((A)AND(NOT(B)))", conjunction1.getKey());
+		
+		String conjunction1NewKey2 = "((A34)5AND(NOT(B5))5)114";
+		conjunction1.setKey(conjunction1NewKey2);
+		assertEquals("((A34)5AND(NOT(B5))5)114", conjunction1.getKey());
+		conjunction1.setKey(conjunction1.cropLastDigit(conjunction1NewKey2));
+		assertEquals("((A34)AND(NOT(B5)))", conjunction1.getKey());
+	}
+*/
+	/**
+	 * Testing the equals method. The equals method compares propositions based 
+	 * on their keys. Note that it compares them on the basis of the key that that 
+	 * proposition automatically generates. So you will never end up with keys with 
+	 * a counter appended, for example. The method calls the crop method
+	 * just in case, so I should write the rest of my tests to double check that
+	 * that is the case and them remove it for efficiency's sake if not.
+	 */
+	@Test
+	void testEqualsProposition() {
+		
+		BinaryProp conjunction1Copy = new BinaryProp("AND", a1, notB1);
+		
+		assertTrue(conjunction1.equals(conjunction1));
+		assertFalse(conjunction1.equals(conjunction2));
+		assertTrue(conjunction1.equals(conjunction1Copy));
+		// This last case is interesting because the equals method explicitly
+		// ignores any updates to the key. Therefore, the crop method can 
+		// definitely be removed.
+		conjunction1Copy.setKey("bananas");
+		assertTrue(conjunction1.equals(conjunction1Copy));
+	}
+
+}

@@ -1,0 +1,199 @@
+import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+/**
+ * Class testing the AtomicProp class.
+ * 
+ * 100% Branch coverage.
+ * 
+ * @author M. Robinson
+ *
+ */
+
+class AtomicPropTest {
+
+	
+	AtomicProp normalProp = new AtomicProp("A");
+	AtomicProp indexProp = new AtomicProp("B33");
+	AtomicProp noNameProp = new AtomicProp("");
+	AtomicProp longNameProp = new AtomicProp("ABCDEFGHIJ");
+	/**
+	 * Testing the constructor of AtomicProp. Cases:
+	 *      Normal atomic proposition;
+	 *      Atomic proposition with index;
+	 *      Atomic proposition with no name;
+	 *      Atomic proposition with a long name.
+	 * Note that we do not expect any exceptions to be
+	 * thrown.
+	 */
+	@Test
+	void testAtomicProp() {
+		try {
+			AtomicProp normalProp = new AtomicProp("A");
+		} catch (IllegalArgumentException e) {
+			fail("Failure in creating normalProp");
+		}
+		try {
+			AtomicProp indexProp = new AtomicProp("B33");
+		} catch (IllegalArgumentException e) {
+			fail("Failure in creating indexProp");
+		}
+		try {
+			AtomicProp noNameProp = new AtomicProp("");
+		} catch (IllegalArgumentException e) {
+			fail("Failure in creating noNameProp");
+		}
+		try {
+			AtomicProp longNameProp = new AtomicProp("ABCDEFGHIJ");
+		} catch (IllegalArgumentException e) {
+			fail("Failure in creating longNameProp");
+		}
+		// Conditional for creating ABSURD prop is tested in testAbsurdCheck()
+	}
+
+	/**
+	 * Testing the generateKey() methods of the four atomic propositions. 
+	 */
+	@Test
+	void testGenerateKey() {
+		String normalPropGenerateKey = normalProp.generateKey();
+		String indexPropGenerateKey = indexProp.generateKey();
+		String noNamePropGenerateKey = noNameProp.generateKey();
+		String longNamePropGenerateKey = longNameProp.generateKey();
+		
+		assertEquals("(A)", normalPropGenerateKey);
+		assertEquals("(B33)", indexPropGenerateKey);
+		assertEquals("()", noNamePropGenerateKey);
+		assertEquals("(ABCDEFGHIJ)", longNamePropGenerateKey);
+	}
+
+	
+	/**
+	 * Testing getKey
+	 */
+	@Test
+	void testGetKey() {
+		String normalPropGenerateKey = normalProp.generateKey();
+		String indexPropGenerateKey = indexProp.generateKey();
+		String noNamePropGenerateKey = noNameProp.generateKey();
+		String longNamePropGenerateKey = longNameProp.generateKey();
+		
+		String normalPropGetKey = normalProp.getKey();
+		String indexPropGetKey = indexProp.getKey();
+		String noNamePropGetKey = noNameProp.getKey();
+		String longNamePropGetKey = longNameProp.getKey();
+		
+		assertEquals(normalPropGenerateKey, normalPropGetKey);
+		assertEquals(indexPropGenerateKey, indexPropGetKey);
+		assertEquals(noNamePropGenerateKey, noNamePropGetKey);
+		assertEquals(longNamePropGenerateKey, longNamePropGetKey);
+	}
+
+	/**
+	 * Testing setKey
+	 */
+	@Test
+	void testSetKey() {
+		String newNormalPropKey = normalProp.getKey() + "1";
+		String newIndexPropKey = indexProp.getKey() + "2";
+		String newNoNamePropKey = noNameProp.getKey() + "!";
+		String newLongNamePropKey = longNameProp.getKey() + "HELLO";
+		
+		normalProp.setKey(newNormalPropKey);
+		indexProp.setKey(newIndexPropKey);
+		noNameProp.setKey(newNoNamePropKey);
+		longNameProp.setKey(newLongNamePropKey);
+		
+		assertEquals(newNormalPropKey, normalProp.getKey());
+		assertEquals(newIndexPropKey, indexProp.getKey());
+		assertEquals(newNoNamePropKey, noNameProp.getKey());
+		assertEquals(newLongNamePropKey, longNameProp.getKey());
+	}
+	
+
+	/**
+	 * Testing absurdCheck
+	 */
+	@Test
+	void testAbsurdCheck() {
+		AtomicProp absurdProp = new AtomicProp("ABSURD");
+		
+		assertTrue(absurdProp.absurdCheck());
+		assertFalse(normalProp.absurdCheck());
+		
+		assertEquals("\u22A5", absurdProp.getUnicode());
+		assertNull(normalProp.getUnicode());
+	}
+
+	/**
+	 * Propositions are compared on the basis of their keys.
+	 * They are treated as identical iff their keys are the same.
+	 * The getProp() method therefore returns the key.
+	 */
+	@Test
+	void testGetProp() {
+
+		String normalPropGetProp = normalProp.getProp();
+		String indexPropGetProp = indexProp.getProp();
+		String noNamePropGetProp = noNameProp.getProp();
+		String longNamePropGetProp = longNameProp.getProp();
+		
+		assertEquals("A", normalPropGetProp);
+		assertEquals("B33", indexPropGetProp);
+		assertEquals("", noNamePropGetProp);
+		assertEquals("ABCDEFGHIJ", longNamePropGetProp);
+	}
+
+	/**
+	 * Testing setProp
+	 */
+	@Test
+	void testSetProp() {
+		
+		String newNormalPropProp = "B";
+		String newIndexPropProp = "A44";
+		String newNoNamePropProp = "OH_NO";
+		String newLongNamePropProp = "QWERTYUIOP";
+		
+		normalProp.setKey(newNormalPropProp);
+		indexProp.setKey(newIndexPropProp);
+		noNameProp.setKey(newNoNamePropProp);
+		longNameProp.setKey(newLongNamePropProp);
+		
+		assertEquals("B", newNormalPropProp);
+		assertEquals("A44", newIndexPropProp);
+		assertEquals("OH_NO", newNoNamePropProp);
+		assertEquals("QWERTYUIOP", newLongNamePropProp);
+	}
+	
+	/**
+	 * Testing deepClone method.
+	 */
+	@Test
+	void testDeepClone() {
+		AtomicProp normalPropClone = (AtomicProp) normalProp.deepClone();
+		assertTrue(normalProp.equals(normalPropClone));
+		normalPropClone.setProp("B");
+		assertFalse(normalProp.equals(normalPropClone));
+	}
+
+	/**
+	 * Testing toString method
+	 */
+	@Test
+	void testToString() {
+		
+		assertEquals("A", normalProp.toString());
+		assertEquals("B33", indexProp.toString());
+		assertEquals("", noNameProp.toString());
+		assertEquals("ABCDEFGHIJ", longNameProp.toString());
+		
+		AtomicProp absurdProp = new AtomicProp("ABSURD");
+		assertEquals("(\u22A5)", absurdProp.toString());
+	}
+
+}
