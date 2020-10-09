@@ -1,0 +1,218 @@
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+
+/**
+ * Class for creating an abstract syntax tree which can be used to generate Proposition
+ * objects by the Proof class. Idea is that the root node is either a keyword, a connective 
+ * or a quantifier. If it's a unary connective or a quantifier, it will only have a left 
+ * subtree and an empty right subtree. It it's a binary connective, it will have a left and
+ * a right subtree. If it's an atom, it will have only empty subtrees. There is also an array 
+ * of terms for logical structures which use those. Thanks to Uday Reddy for his 2018 Tree class,
+ * which heavily influenced the design of this tree.
+ * @author M. Robinson
+ */
+public class AbstractSyntaxTree {
+
+	private Token root;
+	private AbstractSyntaxTree leftSubtree;
+	private AbstractSyntaxTree rightSubtree;
+	private boolean isEmpty;
+	private ArrayList<Token> terms;
+	private boolean hasTerms = false;
+	
+	/**
+	 * Constructor for creating ASTs for binary connectives.
+	 * @param root
+	 * @param leftSubtree
+	 * @param rightSubtree
+	 */
+	public AbstractSyntaxTree(Token root, AbstractSyntaxTree leftSubtree, AbstractSyntaxTree rightSubtree) {
+		this.isEmpty = false;
+		this.root = root;
+		this.leftSubtree = leftSubtree;
+		this.rightSubtree = rightSubtree;
+		this.terms = new ArrayList<Token>();
+		this.hasTerms = false;
+	}
+	
+	/**
+	 * Constructor for generating ASTs for unary connectives and quantifiers.
+	 * @param root
+	 * @param leftSubtree
+	 */
+	public AbstractSyntaxTree(Token root, AbstractSyntaxTree leftSubtree) {
+		this.isEmpty = false;
+		this.root = root;
+		this.leftSubtree = leftSubtree;
+		this.rightSubtree = new AbstractSyntaxTree();
+		this.terms = new ArrayList<Token>();
+		this.hasTerms = false;
+	}
+	
+	/**
+	 * Constructor for generating ASTs dealing with atoms or keywords with no proceeding words
+	 * (specifically, #ENDASSUME).
+	 * @param root
+	 */
+	public AbstractSyntaxTree(Token root) {
+		this.isEmpty = false;
+		this.root = root;
+		this.leftSubtree = new AbstractSyntaxTree();
+		this.rightSubtree = new AbstractSyntaxTree();
+		this.terms = new ArrayList<Token>();
+		this.hasTerms = false;
+	}
+	
+	/**
+	 * Constructor for generating empty ASTs.
+	 */
+	public AbstractSyntaxTree() {
+		this.isEmpty = true;
+		this.root = null;
+		this.leftSubtree = null;
+		this.rightSubtree = null;
+		this.terms = null;
+		this.hasTerms = false;
+	}
+	
+	/**
+	 * Method returning the ArrayList of term tokens.
+	 * @return terms An ArrayList containing this proposition's term tokens.
+	 */
+	public ArrayList<Token> getTerms() {
+		return terms;
+	}
+	
+	/**
+	 * Method for adding a new term Token to the terms ArrayList.
+	 * @param term New term token to be added to the terms ArrayList.
+	 */
+	public void addTerm(Token term) {
+		this.terms.add(term);
+		this.hasTerms = true;
+	}
+
+	/**
+	 * Setter for the terms ArrayList.
+	 * @param terms New ArrayList to replace the one currently stored.
+	 */
+	public void setTerms(ArrayList<Token> terms) {
+		this.terms = terms;
+	}
+
+	/**
+	 * Method to determine whether or not this AST stores any terms.
+	 * @return True if this AST stores any term tokens, false otherwise.
+	 */
+	public boolean hasTerms() {
+		return hasTerms;
+	}
+
+	/**
+	 * Setter for hasTerms.
+	 * @param hasTerms
+	 */
+	public void setHasTerms(boolean hasTerms) {
+		this.hasTerms = hasTerms;
+	}
+
+	/**
+	 * Setter for isEmpty.
+	 * @param isEmpty
+	 */
+	public void setEmpty(boolean isEmpty) {
+		this.isEmpty = isEmpty;
+	}
+	/**
+	 * Method to test whether a given AST is empty.
+	 * @return True if the AST is empty, false otherwise.
+	 */
+	public boolean isEmpty() {
+		return this.isEmpty;
+	}
+	/**
+	 * Getter for the root Token.
+	 * @return root Token object.
+	 */
+	public Token getRoot() {
+		return root;
+	}
+	/**
+	 * Setter for the food.
+	 * @param root The root Token object.
+	 */
+	public void setRoot(Token root) {
+		this.root = root;
+	}
+	/**
+	 * Getter for the left subtree.
+	 * @return Left AbstractSyntaxTree
+	 */
+	public AbstractSyntaxTree getLeftSubtree() {
+		return leftSubtree;
+	}
+	/**
+	 * Setter for the left subtree.
+	 * @param leftSubtree New left AbstractSyntaxTree.
+	 */
+	public void setLeftSubtree(AbstractSyntaxTree leftSubtree) {
+		this.leftSubtree = leftSubtree;
+	}
+	/**
+	 * Getter for the right subtree.
+	 * @return Right AbstractSyntaxTree
+	 */
+	public AbstractSyntaxTree getRightSubtree() {
+		return rightSubtree;
+	}
+	/**
+	 * Setter for the right subtree.
+	 * @param rightSubtree New right AbstractSyntaxTree.
+	 */
+	public void setRightSubtree(AbstractSyntaxTree rightSubtree) {
+		this.rightSubtree = rightSubtree;
+	}
+	
+	/**
+	 * toString() method for printing out representation of tree object. Will output the root information, any terms,
+	 * left subtree information & right subtree information.
+	 */
+	public String toString() {
+		String thisTerms = "";
+		if(hasTerms) {
+			thisTerms = " Terms: (";
+			for(int i = 0; i < terms.size(); i++) {
+				thisTerms = thisTerms + terms.get(i).getLexeme();
+			}
+			thisTerms = thisTerms + ")";
+		}
+		if(this.isEmpty() == true) {
+			return "Empty";
+		} else {
+			return "Root: " + root.getType() + " " + root.getLexeme() + thisTerms + 
+				   " Left subtree: (" + leftSubtree.toString() + 
+				   ") Right subtree: (" + rightSubtree.toString() + ")";
+		}
+		
+	}
+
+    
+	/**
+	 * Main method to run basic test of AbstractSyntaxTree by printing to command line.
+	 * Expected: Root: ATOM A Left subtree: (Root: CONNECTIVE AND Left subtree: (Empty) Right subtree: (Empty)) Right subtree: (Root: ATOM B Left subtree: (Empty) Right subtree: (Empty))
+	 * Actual: Root: ATOM A Left subtree: (Root: CONNECTIVE AND Left subtree: (Empty) Right subtree: (Empty)) Right subtree: (Root: ATOM B Left subtree: (Empty) Right subtree: (Empty))
+	 * Passed.
+	 */
+    public static void main(String[] args) {
+    	Token a = new Token("ATOM", "A", 0);
+    	Token b = new Token("CONNECTIVE", "AND", 1);
+    	Token c = new Token("ATOM","B",  2);
+    	
+    	AbstractSyntaxTree test = new AbstractSyntaxTree(a, new AbstractSyntaxTree(b), new AbstractSyntaxTree(c));
+    	System.out.println(test.toString());
+    	
+    }
+}
