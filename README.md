@@ -1,5 +1,5 @@
 # PRODLOG-Proof-Checker
-Interactive proof checker for creating Fitch-style proofs in propositional and predicate logic. See manual for more detailed instructions.
+Interactive proof checker for creating Fitch-style proofs in propositional and predicate logic. See README.pdf for more detailed instructions.
 
 The following JAR files can be found and downloaded from lib. These need to be added to the program's module path:
 
